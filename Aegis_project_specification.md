@@ -1,16 +1,20 @@
-# Zero-Trust Secure File Sharing System
+# Zero-Trust Secure File Sharing Protocol
+
 ## Complete Project Specification
 
-**Project Codename:** Vault  
+**Project Codename:** Aegis  
 **Author:** Abdulaziz  
-**Version:** 1.0  
-**Date:** December 26, 2025
+**Version:** 1.1  
+**Date:** July 26, 2026
+**Revision:** v1.1 — Scope refined to desktop and web clients only (mobile platforms removed; see §4.5 for rationale)
 
 ---
 
 ## Executive Summary
 
 This document specifies a secure file sharing system designed from first principles around a revolutionary concept: **the server knows nothing**. Unlike existing solutions that compromise between security and convenience, this system achieves both by placing cryptographic operations entirely on client devices, treating the server as an untrusted storage medium, and implementing defense-in-depth through split-key delivery, ephemeral cryptographic keys, and optional peer-to-peer transfers.
+
+The system targets desktop platforms (Windows, macOS, Linux) via a Tauri-based application with a Rust cryptographic core, and a deliberately limited web companion for file reception. Native mobile clients are excluded by design to minimize attack surface and maintain a tractable security audit scope (see §4.5).
 
 This specification details every aspect of the system: the vision, architecture, security model, threat analysis, data flows, technology choices, and comparison with existing solutions. A security expert reading this document should find answers to questions before they ask them.
 
@@ -39,7 +43,7 @@ This specification details every aspect of the system: the vision, architecture,
 
 ### 1.1 The Dream
 
-> *"A system so solid that even you, the creator, can't breach it without the user's key."*
+> _"A system so solid that even you, the creator, can't breach it without the user's key."_
 
 This system represents the convergence of three historically separate ideals:
 
@@ -71,13 +75,13 @@ The server becomes an expensive USB stick — blind, dumb, fast.
 
 These must NEVER be violated, regardless of feature pressure:
 
-| Invariant | Meaning |
-|-----------|---------|
-| Server never sees plaintext | All encryption on client |
-| Server never possesses keys | Keys never leave client devices |
-| Every file has unique key | No key reuse across files |
-| Metadata is meaningless | Encrypted or randomized |
-| Identity = public key | No personal identifiable information |
+| Invariant                   | Meaning                              |
+| --------------------------- | ------------------------------------ |
+| Server never sees plaintext | All encryption on client             |
+| Server never possesses keys | Keys never leave client devices      |
+| Every file has unique key   | No key reuse across files            |
+| Metadata is meaningless     | Encrypted or randomized              |
+| Identity = public key       | No personal identifiable information |
 
 #### Principle 3: Defense in Depth
 
@@ -96,14 +100,14 @@ Layer 6: Secure vault (endpoint protection)
 
 This is not overengineering for the sake of complexity. Every feature addresses a real threat:
 
-| Feature | Threat Addressed |
-|---------|------------------|
-| Per-file ephemeral keys | Limits blast radius of any key compromise |
-| Zero-trust server | Prevents insider attacks and government data grabs |
-| No metadata | Protects against correlation attacks |
-| P2P fallback | Saves server cost and increases privacy |
-| Split-key delivery | Protects links from theft |
-| Secure local vault | Prevents OS-level leaks |
+| Feature                 | Threat Addressed                                   |
+| ----------------------- | -------------------------------------------------- |
+| Per-file ephemeral keys | Limits blast radius of any key compromise          |
+| Zero-trust server       | Prevents insider attacks and government data grabs |
+| No metadata             | Protects against correlation attacks               |
+| P2P fallback            | Saves server cost and increases privacy            |
+| Split-key delivery      | Protects links from theft                          |
+| Secure local vault      | Prevents OS-level leaks                            |
 
 ---
 
@@ -114,24 +118,28 @@ This is not overengineering for the sake of complexity. Every feature addresses 
 Existing file sharing solutions fall into categories:
 
 **Category 1: Convenient but Insecure**
+
 - Google Drive, Dropbox, OneDrive
 - Server has full access to all files
 - Single breach exposes millions of users
 - Comply with any government request
 
 **Category 2: Secure but Inconvenient**
+
 - PGP file encryption, GPG
 - Excellent security, terrible UX
 - Key management is a nightmare
 - Regular users cannot adopt
 
 **Category 3: Partially Secure**
+
 - Proton Drive, Tresorit
 - E2EE but account-based identity
 - Some metadata still exposed
 - No P2P option
 
 **Category 4: Anonymous but Limited**
+
 - OnionShare
 - Highest anonymity but requires both parties online
 - No persistent storage
@@ -141,15 +149,15 @@ Existing file sharing solutions fall into categories:
 
 No existing solution provides ALL of:
 
-| Requirement | Gap in Current Solutions |
-|-------------|-------------------------|
-| True anonymity | All require email/phone identity |
-| Zero metadata | All leak some metadata |
-| Split-key security | None implement this |
-| Per-file forward secrecy | None implement this |
-| P2P option with cloud fallback | None combine both |
-| Encrypted search | None support this |
-| Offline both parties | OnionShare lacks this |
+| Requirement                    | Gap in Current Solutions         |
+| ------------------------------ | -------------------------------- |
+| True anonymity                 | All require email/phone identity |
+| Zero metadata                  | All leak some metadata           |
+| Split-key security             | None implement this              |
+| Per-file forward secrecy       | None implement this              |
+| P2P option with cloud fallback | None combine both                |
+| Encrypted search               | None support this                |
+| Offline both parties           | OnionShare lacks this            |
 
 ### 2.3 Our Solution
 
@@ -185,11 +193,11 @@ Any feature that violates these invariants is rejected, regardless of its value.
 
 The system explicitly does NOT protect against:
 
-| Non-Goal | Reason |
-|----------|--------|
-| Compromised endpoints | Malware on user device can always capture decrypted content |
-| Malicious recipients | Users who receive files can always leak them |
-| Physical coercion | Users cannot be protected from physical threats |
+| Non-Goal                             | Reason                                                      |
+| ------------------------------------ | ----------------------------------------------------------- |
+| Compromised endpoints                | Malware on user device can always capture decrypted content |
+| Malicious recipients                 | Users who receive files can always leak them                |
+| Physical coercion                    | Users cannot be protected from physical threats             |
 | Traffic analysis by global adversary | No practical system defeats nation-state timing correlation |
 
 These are fundamental limitations of any cryptographic system, not design flaws.
@@ -198,7 +206,7 @@ These are fundamental limitations of any cryptographic system, not design flaws.
 
 ```
            Trust Level Diagram
-           
+
 FULLY TRUSTED
 ├── Client Crypto Layer (key generation, encryption, signing)
 ├── Client Vault Layer (secure storage, memory hygiene)
@@ -225,10 +233,10 @@ CONDITIONALLY TRUSTED
 │                     USER DEVICES                            │
 │  ┌───────────────────────────────────────────────────────┐ │
 │  │                   Application Layer                    │ │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  │ │
-│  │  │   Mobile    │  │   Desktop    │  │     Web      │  │ │
-│  │  │  (Native)   │  │   (Tauri)    │  │  (Limited)   │  │ │
-│  │  └─────────────┘  └──────────────┘  └──────────────┘  │ │
+│  │  ┌──────────────────────────┐  ┌──────────────────┐   │ │
+│  │  │       Desktop            │  │      Web         │   │ │
+│  │  │       (Tauri)            │  │   (Limited)      │   │ │
+│  │  └──────────────────────────┘  └──────────────────┘   │ │
 │  ├───────────────────────────────────────────────────────┤ │
 │  │                    Vault Layer                         │ │
 │  │  ┌────────────────────────────────────────────────┐   │ │
@@ -282,20 +290,21 @@ CONDITIONALLY TRUSTED
 
 ### 4.2 Trust Boundaries
 
-| Zone | Trust Level | Responsibilities |
-|------|-------------|------------------|
-| Client Crypto Layer | Fully Trusted | Key generation, encryption, signing, ratchets |
-| Client Vault Layer | Trusted | Secure storage, memory hygiene, sandbox |
-| Network | Partially Trusted | TLS protects against MITM |
-| Server | NOT Trusted | Encrypted blob storage, routing |
-| Storage | NOT Trusted | Dumb blob persistence |
-| P2P | Trusted locally | Direct encrypted transfer |
+| Zone                | Trust Level       | Responsibilities                              |
+| ------------------- | ----------------- | --------------------------------------------- |
+| Client Crypto Layer | Fully Trusted     | Key generation, encryption, signing, ratchets |
+| Client Vault Layer  | Trusted           | Secure storage, memory hygiene, sandbox       |
+| Network             | Partially Trusted | TLS protects against MITM                     |
+| Server              | NOT Trusted       | Encrypted blob storage, routing               |
+| Storage             | NOT Trusted       | Dumb blob persistence                         |
+| P2P                 | Trusted locally   | Direct encrypted transfer                     |
 
 ### 4.3 Server Responsibilities
 
 The server is deliberately "stupid":
 
 **Server DOES:**
+
 - Accept encrypted blob uploads
 - Store blobs with random IDs
 - Serve blobs on request
@@ -304,6 +313,7 @@ The server is deliberately "stupid":
 - Coordinate P2P handshakes (NAT traversal)
 
 **Server DOES NOT:**
+
 - Know file contents
 - Know file names
 - Know user identities (beyond tokens)
@@ -323,15 +333,15 @@ pub struct CryptoLayer {
     // Key management
     fn generate_identity() -> (SecretKey, PublicKey);
     fn generate_ephemeral_keypair() -> (SecretKey, PublicKey);
-    
+
     // File encryption
     fn encrypt_file(plaintext: &[u8], recipient: &PublicKey) -> EncryptedPackage;
     fn decrypt_file(package: &EncryptedPackage, key: &SecretKey) -> Vec<u8>;
-    
+
     // Key exchange
     fn derive_shared_secret(our_private: &SecretKey, their_public: &PublicKey) -> SharedSecret;
     fn derive_file_key(shared: &SharedSecret, file_id: &[u8]) -> FileKey;
-    
+
     // Signing
     fn sign(message: &[u8], key: &SecretKey) -> Signature;
     fn verify(message: &[u8], signature: &Signature, key: &PublicKey) -> bool;
@@ -345,20 +355,42 @@ pub struct SecureVault {
     // Storage
     fn store_file(encrypted: &[u8], id: &FileId) -> Result<()>;
     fn retrieve_file(id: &FileId) -> Result<Vec<u8>>;
-    
+
     // Memory management
     fn secure_allocate(size: usize) -> SecureBuffer;
     fn secure_zero(buffer: &mut [u8]);
-    
+
     // Auto-management
     fn set_auto_lock(timeout: Duration);
     fn set_auto_wipe(inactivity: Duration);
-    
+
     // Access control
     fn unlock(passphrase: &str) -> Result<VaultHandle>;
     fn lock() -> Result<()>;
 }
 ```
+
+### 4.5 Scope Decision: No Native Mobile Clients
+
+This system deliberately excludes native mobile applications (Android/iOS) from scope. This is a principled security and engineering decision:
+
+#### 4.5.1 Security Rationale
+
+| Concern                                | Explanation                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FFI bridge attack surface**          | Each native mobile platform (Android via JNI, iOS via Swift FFI) introduces platform-specific bindings that create new categories of memory safety bugs at the FFI boundary — use-after-free, double-free, and type confusion. These are precisely the vulnerability classes Rust was chosen to eliminate. Adding two FFI layers roughly triples the number of unsafe boundary crossings that must be audited. |
+| **Platform-controlled key storage**    | Android Keystore and iOS Secure Enclave are opaque, vendor-controlled subsystems. Documented vulnerabilities in hardware TEEs (Samsung TrustZone CVEs, Qualcomm TEE escapes) mean relying on them for root-of-trust moves security guarantees outside our auditable codebase.                                                                                                                                  |
+| **OS-level data leakage**              | Mobile operating systems routinely snapshot app state for task switchers, back up app data to cloud services (iCloud, Google Backup), index file contents for system search (Spotlight), and log IPC calls. Preventing these leaks requires per-OS workarounds that are fragile, version-dependent, and unverifiable by auditors.                                                                              |
+| **App store as a trusted third party** | Distribution through Apple App Store and Google Play introduces gatekeepers who can inject code (cf. XcodeGhost), demand metadata disclosure (privacy nutrition labels), and remotely revoke or modify applications. This conflicts with zero-trust principles — it inserts a trusted third party into the software delivery chain.                                                                            |
+| **Audit cost**                         | A security audit of the Rust core + Tauri desktop app is a tractable, well-bounded problem. Adding two native mobile codebases with platform-specific secure storage, biometric APIs, and push notification integrations roughly triples the audit surface without proportional security benefit.                                                                                                              |
+
+#### 4.5.2 Engineering Rationale
+
+Maintaining native mobile apps requires dedicated platform expertise (Kotlin/Android, Swift/iOS), separate CI/CD pipelines, platform-specific testing matrices, and ongoing compliance with frequently changing app store policies. For a security-first project, this engineering effort is better invested in hardening the cryptographic core and the desktop client.
+
+#### 4.5.3 What Users Get Instead
+
+The Tauri-based desktop application provides full access to all system features — encryption, decryption, split-key sharing, P2P transfers, and the secure local vault — across Windows, macOS, and Linux from a single auditable Rust codebase. A future web client with deliberately limited functionality (constrained by browser sandbox limitations on filesystem access, memory locking, and secure key storage) may serve as a lightweight companion for receiving shared files, but the desktop application remains the primary trusted client.
 
 ---
 
@@ -366,57 +398,57 @@ pub struct SecureVault {
 
 ### 5.1 Primitive Selection
 
-| Purpose | Primitive | Justification |
-|---------|-----------|---------------|
-| Symmetric Encryption | XChaCha20-Poly1305 | 192-bit nonce (random-safe), fast, AEAD |
-| Key Exchange | X25519 (Curve25519) | Side-channel resistant, constant-time |
-| Digital Signatures | Ed25519 | Deterministic, no RNG dependency |
-| Hashing | BLAKE3 | Fastest secure hash, parallelizable |
-| Key Derivation | HKDF-BLAKE3 | Standard, domain separation |
+| Purpose              | Primitive           | Justification                           |
+| -------------------- | ------------------- | --------------------------------------- |
+| Symmetric Encryption | XChaCha20-Poly1305  | 192-bit nonce (random-safe), fast, AEAD |
+| Key Exchange         | X25519 (Curve25519) | Side-channel resistant, constant-time   |
+| Digital Signatures   | Ed25519             | Deterministic, no RNG dependency        |
+| Hashing              | BLAKE3              | Fastest secure hash, parallelizable     |
+| Key Derivation       | HKDF-BLAKE3         | Standard, domain separation             |
 
 ### 5.2 Why These Choices
 
 #### Why XChaCha20-Poly1305 (Not AES-GCM)?
 
-| Factor | XChaCha20-Poly1305 | AES-GCM |
-|--------|-------------------|---------|
-| Nonce size | 192 bits (random-safe) | 96 bits (collision risk) |
-| Hardware acceleration | Not required | Required for speed |
-| Timing attacks | Immune by design | Vulnerable without AES-NI |
-| Implementation complexity | Simple | Complex (requires care) |
-| Mobile performance | Excellent | Slow without hardware |
+| Factor                    | XChaCha20-Poly1305         | AES-GCM                       |
+| ------------------------- | -------------------------- | ----------------------------- |
+| Nonce size                | 192 bits (random-safe)     | 96 bits (collision risk)      |
+| Hardware acceleration     | Not required               | Required for speed            |
+| Timing attacks            | Immune by design           | Vulnerable without AES-NI     |
+| Implementation complexity | Simple                     | Complex (requires care)       |
+| Software performance      | Excellent on all platforms | Slow without hardware support |
 
-For a system where random nonce generation is preferred and mobile devices are targets, XChaCha20-Poly1305 is superior.
+For a system where random nonce generation is preferred and consistent cross-platform performance matters, XChaCha20-Poly1305 is superior.
 
 #### Why Curve25519 (Not NIST curves)?
 
-| Factor | Curve25519 | NIST P-256 |
-|--------|-----------|------------|
-| Parameter transparency | Fully documented | Unexplained seeds |
-| Implementation safety | Montgomery ladder | Requires care |
-| Side-channel resistance | Built-in | Must be added |
-| Patents | None | Complex history |
-| Community trust | High | Suspicion of NSA influence |
+| Factor                  | Curve25519        | NIST P-256                 |
+| ----------------------- | ----------------- | -------------------------- |
+| Parameter transparency  | Fully documented  | Unexplained seeds          |
+| Implementation safety   | Montgomery ladder | Requires care              |
+| Side-channel resistance | Built-in          | Must be added              |
+| Patents                 | None              | Complex history            |
+| Community trust         | High              | Suspicion of NSA influence |
 
 #### Why Ed25519 (Not ECDSA)?
 
-| Factor | Ed25519 | ECDSA |
-|--------|---------|-------|
-| Signature determinism | Yes | No (RNG required) |
-| RNG failure impact | None | Catastrophic |
-| Speed | Faster | Slower |
-| Signature size | 64 bytes | 64 bytes |
+| Factor                | Ed25519  | ECDSA             |
+| --------------------- | -------- | ----------------- |
+| Signature determinism | Yes      | No (RNG required) |
+| RNG failure impact    | None     | Catastrophic      |
+| Speed                 | Faster   | Slower            |
+| Signature size        | 64 bytes | 64 bytes          |
 
 ECDSA failures have caused real-world disasters (Sony PS3, Bitcoin thefts). Ed25519 eliminates this risk.
 
 #### Why BLAKE3 (Not SHA-256)?
 
-| Factor | BLAKE3 | SHA-256 |
-|--------|--------|---------|
-| Speed | 12× faster | Baseline |
-| Parallelization | Native (Merkle tree) | None |
-| Length extension | Immune | Vulnerable |
-| Future-proof | Modern design | 2001 design |
+| Factor           | BLAKE3               | SHA-256     |
+| ---------------- | -------------------- | ----------- |
+| Speed            | 12× faster           | Baseline    |
+| Parallelization  | Native (Merkle tree) | None        |
+| Length extension | Immune               | Vulnerable  |
+| Future-proof     | Modern design        | 2001 design |
 
 For a system handling large files, BLAKE3's parallelism provides significant advantages.
 
@@ -497,7 +529,7 @@ SPLIT-KEY SHARING:
 DELIVERY CHANNELS:
 ┌─────────────────────────────────────────────────────────────┐
 │  Blob link: via app, email, message                         │
-│  Key: via QR code, NFC bump, verbal, separate message       │
+│  Key: via QR code, verbal, separate message                 │
 │                                                             │
 │  Attacker needs to compromise BOTH channels                 │
 └─────────────────────────────────────────────────────────────┘
@@ -536,7 +568,7 @@ CRYPTOGRAPHIC IDENTITY:
 │                                                             │
 │  Identity Generation:                                        │
 │  1. Generate Ed25519 keypair locally                        │
-│  2. Store private key in secure enclave / OS keystore       │
+│  2. Store private key in OS keychain / credential manager   │
 │  3. Public key IS the identity                              │
 │  4. Optional: Add display name (stored encrypted)           │
 └─────────────────────────────────────────────────────────────┘
@@ -606,7 +638,7 @@ ACCOUNT RECOVERY:
 │                     ↓                                        │
 │  14. Separately store/share decryption key                  │
 │      - Key stored locally in vault                          │
-│      - Key shared via separate channel (QR, NFC, message)   │
+│      - Key shared via separate channel (QR, message)        │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -846,30 +878,33 @@ Removes #1 reason attackers target cloud platforms.
 ### 7.2 Additional Attacker Models
 
 **Rank 6: Surveillance Capitalism**
+
 - Data mining for advertising
 - Behavioral profiling
 - Protection: No data to mine
 
 **Rank 7: Competitive Intelligence**
+
 - Corporate espionage
 - Protection: Files are encrypted, metadata hidden
 
 **Rank 8: Script Kiddies / Opportunistic Hackers**
+
 - Automated scanning and exploitation
 - Protection: Standard security + no valuable targets
 
 ### 7.3 Threat Summary Table
 
-| Attacker Model | Protection Level | Notes |
-|----------------|------------------|-------|
-| Server breach | **IMMUNE** | No useful data |
-| Insider threat | **IMMUNE** | Zero-trust design |
-| Government surveillance | **STRONG** | No data to compel |
-| Network attackers | **IMMUNE** | Split-key + E2EE |
-| Mass-scale hackers | **IMMUNE** | No valuable targets |
-| Endpoint malware | EXPOSED | Out of scope |
-| Social engineering | EXPOSED | Human weakness |
-| Physical coercion | EXPOSED | Out of scope |
+| Attacker Model          | Protection Level | Notes               |
+| ----------------------- | ---------------- | ------------------- |
+| Server breach           | **IMMUNE**       | No useful data      |
+| Insider threat          | **IMMUNE**       | Zero-trust design   |
+| Government surveillance | **STRONG**       | No data to compel   |
+| Network attackers       | **IMMUNE**       | Split-key + E2EE    |
+| Mass-scale hackers      | **IMMUNE**       | No valuable targets |
+| Endpoint malware        | EXPOSED          | Out of scope        |
+| Social engineering      | EXPOSED          | Human weakness      |
+| Physical coercion       | EXPOSED          | Out of scope        |
 
 ---
 
@@ -877,46 +912,45 @@ Removes #1 reason attackers target cloud platforms.
 
 ### 8.1 Immune Attack Vectors
 
-| Attack Vector | Status | Explanation |
-|---------------|--------|-------------|
-| Server-side data breach | **IMMUNE** | Only encrypted blobs stored |
-| Insider/admin abuse | **IMMUNE** | No keys on server |
-| Link hijacking | **IMMUNE** | Split-key requires both parts |
-| Metadata correlation | **IMMUNE** | All metadata encrypted |
-| Mass surveillance | **IMMUNE** | No logs, no identities |
-| Man-in-the-middle | **IMMUNE** | ECDH + TLS + signatures |
-| Plaintext on disk | **IMMUNE** | Secure vault sandbox |
-| Cloud provider access | **IMMUNE** | Blobs are meaningless |
-| ISP surveillance | **IMMUNE** | E2EE + TLS |
+| Attack Vector           | Status     | Explanation                   |
+| ----------------------- | ---------- | ----------------------------- |
+| Server-side data breach | **IMMUNE** | Only encrypted blobs stored   |
+| Insider/admin abuse     | **IMMUNE** | No keys on server             |
+| Link hijacking          | **IMMUNE** | Split-key requires both parts |
+| Metadata correlation    | **IMMUNE** | All metadata encrypted        |
+| Mass surveillance       | **IMMUNE** | No logs, no identities        |
+| Man-in-the-middle       | **IMMUNE** | ECDH + TLS + signatures       |
+| Plaintext on disk       | **IMMUNE** | Secure vault sandbox          |
+| Cloud provider access   | **IMMUNE** | Blobs are meaningless         |
+| ISP surveillance        | **IMMUNE** | E2EE + TLS                    |
 
 ### 8.2 Strongly Protected Attack Vectors
 
-| Attack Vector | Status | Mitigation |
-|---------------|--------|------------|
-| Targeted device malware | PROTECTED | Vault prevents filesystem leaks, but in-memory access possible |
-| Social engineering | PROTECTED | Warnings, but humans are weak |
-| Rooted/jailbroken devices | PROTECTED | Vault helps, but kernel access is powerful |
-| Traffic correlation | PROTECTED | Padding and P2P help, but timing leaks |
-| Zero-day vulnerabilities | PROTECTED | Regular updates, but unknown bugs exist |
+| Attack Vector            | Status    | Mitigation                                                     |
+| ------------------------ | --------- | -------------------------------------------------------------- |
+| Targeted device malware  | PROTECTED | Vault prevents filesystem leaks, but in-memory access possible |
+| Social engineering       | PROTECTED | Warnings, but humans are weak                                  |
+| Traffic correlation      | PROTECTED | Padding and P2P help, but timing leaks                         |
+| Zero-day vulnerabilities | PROTECTED | Regular updates, but unknown bugs exist                        |
 
 ### 8.3 Partially Covered Attack Vectors
 
-| Attack Vector | Status | Notes |
-|---------------|--------|-------|
-| Replay attacks | PARTIALLY | Nonces prevent, but need careful implementation |
-| Denial of service | PARTIALLY | Rate limiting helps, but flooding possible |
+| Attack Vector        | Status    | Notes                                             |
+| -------------------- | --------- | ------------------------------------------------- |
+| Replay attacks       | PARTIALLY | Nonces prevent, but need careful implementation   |
+| Denial of service    | PARTIALLY | Rate limiting helps, but flooding possible        |
 | Side-channel attacks | PARTIALLY | Constant-time crypto, but hardware channels exist |
-| Fingerprinting | PARTIALLY | Can detect device/OS characteristics |
+| Fingerprinting       | PARTIALLY | Can detect device/OS characteristics              |
 
 ### 8.4 Exposed Attack Vectors (Fundamental Limitations)
 
-| Attack Vector | Status | Why Unsolvable |
-|---------------|--------|----------------|
-| Compromised recipient | **EXPOSED** | Recipients can always screenshot, re-share |
-| Physical access | **EXPOSED** | Unlocked devices accessible |
-| Human error | **EXPOSED** | Users leak keys, use weak passphrases |
-| Legal compulsion of user | **EXPOSED** | Users can be forced to reveal keys |
-| Nation-state level attacker | **EXPOSED** | Unlimited resources, unknown capabilities |
+| Attack Vector               | Status      | Why Unsolvable                             |
+| --------------------------- | ----------- | ------------------------------------------ |
+| Compromised recipient       | **EXPOSED** | Recipients can always screenshot, re-share |
+| Physical access             | **EXPOSED** | Unlocked devices accessible                |
+| Human error                 | **EXPOSED** | Users leak keys, use weak passphrases      |
+| Legal compulsion of user    | **EXPOSED** | Users can be forced to reveal keys         |
+| Nation-state level attacker | **EXPOSED** | Unlimited resources, unknown capabilities  |
 
 ### 8.5 Detailed Attack Analysis
 
@@ -958,7 +992,7 @@ WITH TRADITIONAL SYSTEM:
 
 WITH SPLIT-KEY SYSTEM:
 ├── Link contains: URL only
-├── Key delivered: separately (QR, NFC, voice)
+├── Key delivered: separately (QR, voice)
 ├── Attacker has: encrypted blob location
 └── Outcome: ATTACK FAILURE
 
@@ -995,36 +1029,35 @@ Admin's privileged access provides zero advantage.
 
 ### 9.1 Confidentiality
 
-| Mechanism | Contribution |
-|-----------|--------------|
-| XChaCha20-Poly1305 | Content encrypted with 256-bit key |
-| Per-file ephemeral keys | Each file independently secured |
-| Zero-knowledge server | Server cannot read content |
-| Split-key delivery | Link alone reveals nothing |
-| Encrypted metadata | Filenames, sizes hidden |
+| Mechanism               | Contribution                       |
+| ----------------------- | ---------------------------------- |
+| XChaCha20-Poly1305      | Content encrypted with 256-bit key |
+| Per-file ephemeral keys | Each file independently secured    |
+| Zero-knowledge server   | Server cannot read content         |
+| Split-key delivery      | Link alone reveals nothing         |
+| Encrypted metadata      | Filenames, sizes hidden            |
 
 **Result**: Maximum confidentiality at all layers.
 
 ### 9.2 Integrity
 
-| Mechanism | Contribution |
-|-----------|--------------|
+| Mechanism               | Contribution                        |
+| ----------------------- | ----------------------------------- |
 | Poly1305 authentication | Detects any ciphertext modification |
-| Ed25519 signatures | Verifies sender authenticity |
-| BLAKE3 hashing | Content integrity verification |
-| Per-chunk MACs | Large file corruption detected |
+| Ed25519 signatures      | Verifies sender authenticity        |
+| BLAKE3 hashing          | Content integrity verification      |
+| Per-chunk MACs          | Large file corruption detected      |
 
 **Result**: Any tampering immediately detected.
 
 ### 9.3 Availability
 
-| Mechanism | Contribution |
-|-----------|--------------|
+| Mechanism            | Contribution                 |
+| -------------------- | ---------------------------- |
 | Multi-region storage | Survives datacenter failures |
-| Stateless servers | Horizontal scaling |
-| P2P fallback | Server bypass if needed |
-| TTL expiration | Automatic cleanup |
-
+| Stateless servers    | Horizontal scaling           |
+| P2P fallback         | Server bypass if needed      |
+| TTL expiration       | Automatic cleanup            |
 
 **Result**: High availability with graceful degradation.
 
@@ -1054,26 +1087,26 @@ Admin's privileged access provides zero advantage.
 
 ### 10.1 Why Rust
 
-| Requirement | How Rust Achieves It |
-|-------------|---------------------|
-| Memory safety | Ownership system prevents UAF, buffer overflow |
-| Performance | Zero-cost abstractions, no GC |
-| Concurrency | Compile-time race prevention |
-| Cryptographic security | No memory bugs in crypto code |
-| Cross-platform | Compiles to all targets |
+| Requirement            | How Rust Achieves It                           |
+| ---------------------- | ---------------------------------------------- |
+| Memory safety          | Ownership system prevents UAF, buffer overflow |
+| Performance            | Zero-cost abstractions, no GC                  |
+| Concurrency            | Compile-time race prevention                   |
+| Cryptographic security | No memory bugs in crypto code                  |
+| Cross-platform         | Compiles to all targets                        |
 
 **Alternative considered**: C/C++
 **Rejection reason**: 70% of CVEs are memory safety bugs. Rust eliminates this class.
 
 ### 10.2 Why Tauri (Not Electron)
 
-| Requirement | Tauri | Electron |
-|-------------|-------|----------|
-| Binary size | 3-10 MB | 150+ MB |
-| Memory usage | Low | High |
-| Security updates | OS WebView | Manual Chromium |
-| Attack surface | Minimal | Large (full Chrome) |
-| IPC security | Explicit permissions | Broad by default |
+| Requirement      | Tauri                | Electron            |
+| ---------------- | -------------------- | ------------------- |
+| Binary size      | 3-10 MB              | 150+ MB             |
+| Memory usage     | Low                  | High                |
+| Security updates | OS WebView           | Manual Chromium     |
+| Attack surface   | Minimal              | Large (full Chrome) |
+| IPC security     | Explicit permissions | Broad by default    |
 
 **Alternative considered**: Electron
 **Rejection reason**: Electron bundles 150+ MB Chrome, has larger attack surface, requires manual security updates.
@@ -1091,7 +1124,7 @@ REQUIREMENT: Random nonce safety
 REQUIREMENT: Software performance
 ├── XChaCha20: Fast without hardware
 ├── AES-GCM: Slow without AES-NI
-└── WINNER: XChaCha20 (mobile devices)
+└── WINNER: XChaCha20 (consistent cross-platform performance)
 
 REQUIREMENT: Side-channel resistance
 ├── XChaCha20: Inherently constant-time
@@ -1129,24 +1162,24 @@ REQUIREMENT: Length extension immunity
 
 ### 10.4 Server Technology
 
-| Option | Choice | Reason |
-|--------|--------|--------|
-| Language | Rust or Go | Memory safety, performance |
-| Framework | Minimal custom | Reduce attack surface |
-| Database | None (blob storage) | Minimal state |
-| Storage | S3-compatible | Commodity, replaceable |
-| Caching | Redis (rate limiting only) | Ephemeral data |
+| Option    | Choice                     | Reason                     |
+| --------- | -------------------------- | -------------------------- |
+| Language  | Rust or Go                 | Memory safety, performance |
+| Framework | Minimal custom             | Reduce attack surface      |
+| Database  | None (blob storage)        | Minimal state              |
+| Storage   | S3-compatible              | Commodity, replaceable     |
+| Caching   | Redis (rate limiting only) | Ephemeral data             |
 
 ### 10.5 What NOT to Use
 
-| Technology | Reject Reason |
-|------------|---------------|
-| Blockchain | Adds nothing, leaks metadata |
-| Smart contracts | Unnecessary complexity |
-| AI in crypto path | Unverifiable, risky |
-| Electron | Huge attack surface |
-| Node.js for crypto | Memory + dependency issues |
-| Custom cryptography | Career-ending mistake |
+| Technology          | Reject Reason                |
+| ------------------- | ---------------------------- |
+| Blockchain          | Adds nothing, leaks metadata |
+| Smart contracts     | Unnecessary complexity       |
+| AI in crypto path   | Unverifiable, risky          |
+| Electron            | Huge attack surface          |
+| Node.js for crypto  | Memory + dependency issues   |
+| Custom cryptography | Career-ending mistake        |
 
 ---
 
@@ -1154,42 +1187,46 @@ REQUIREMENT: Length extension immunity
 
 ### 11.1 Feature Matrix
 
-| Feature | Our System | Proton Drive | Tresorit | OnionShare | Dropbox |
-|---------|------------|--------------|----------|------------|---------|
-| E2E Encryption | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Zero-knowledge server | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Anonymous identity | ✅ | ❌ (email) | ❌ (email) | ✅ | ❌ |
-| Zero metadata | ✅ | ⚠️ (partial) | ⚠️ (partial) | ✅ | ❌ |
-| Split-key delivery | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Per-file ephemeral keys | ✅ | ❌ | ❌ | ❌ | ❌ |
-| P2P option | ✅ | ❌ | ❌ | ✅ (only) | ❌ |
-| Offline recipient | ✅ | ✅ | ✅ | ❌ | ✅ |
-| Secure local vault | ✅ | ⚠️ | ⚠️ | ❌ | ❌ |
-| Forward secrecy | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Encrypted search | 🔜 | ❌ | ❌ | ❌ | ❌ |
-| Open source | ✅ | ✅ (partial) | ❌ | ✅ | ❌ |
+| Feature                 | Our System | Proton Drive | Tresorit     | OnionShare | Dropbox |
+| ----------------------- | ---------- | ------------ | ------------ | ---------- | ------- |
+| E2E Encryption          | ✅         | ✅           | ✅           | ✅         | ❌      |
+| Zero-knowledge server   | ✅         | ✅           | ✅           | ✅         | ❌      |
+| Anonymous identity      | ✅         | ❌ (email)   | ❌ (email)   | ✅         | ❌      |
+| Zero metadata           | ✅         | ⚠️ (partial) | ⚠️ (partial) | ✅         | ❌      |
+| Split-key delivery      | ✅         | ❌           | ❌           | ❌         | ❌      |
+| Per-file ephemeral keys | ✅         | ❌           | ❌           | ❌         | ❌      |
+| P2P option              | ✅         | ❌           | ❌           | ✅ (only)  | ❌      |
+| Offline recipient       | ✅         | ✅           | ✅           | ❌         | ✅      |
+| Secure local vault      | ✅         | ⚠️           | ⚠️           | ❌         | ❌      |
+| Forward secrecy         | ✅         | ❌           | ❌           | ❌         | ❌      |
+| Encrypted search        | 🔜         | ❌           | ❌           | ❌         | ❌      |
+| Open source             | ✅         | ✅ (partial) | ❌           | ✅         | ❌      |
 
 ### 11.2 Where Competitors Fail
 
 **Proton Drive**:
+
 - ✘ Requires email account (identity leak)
 - ✘ No split-key architecture
 - ✘ No P2P fallback
 - ✘ No per-file forward secrecy
 
 **Tresorit**:
+
 - ✘ Requires account registration
 - ✘ Closed source
 - ✘ Business-focused (less privacy-centric)
 - ✘ No P2P, no split-key
 
 **OnionShare**:
+
 - ✘ Requires both parties online
 - ✘ No persistent storage
 - ✘ Tor latency (slow)
 - ✘ No cloud option
 
 **Sync/Mega/Others**:
+
 - ✘ Account-based identity
 - ✘ Some metadata exposed
 - ✘ Varying trust models
@@ -1216,22 +1253,23 @@ Combining:
 
 These cannot be solved by any cryptographic system:
 
-| Limitation | Explanation |
-|------------|-------------|
-| Compromised recipient | If recipient leaks file, crypto cannot help |
-| Physical coercion | User can be forced to reveal keys |
-| Endpoint malware | Keyloggers, screen capture bypass all crypto |
+| Limitation             | Explanation                                  |
+| ---------------------- | -------------------------------------------- |
+| Compromised recipient  | If recipient leaks file, crypto cannot help  |
+| Physical coercion      | User can be forced to reveal keys            |
+| Endpoint malware       | Keyloggers, screen capture bypass all crypto |
 | Nation-state adversary | Unlimited resources may find unknown attacks |
-| User error | Weak passwords, key mismanagement |
+| User error             | Weak passwords, key mismanagement            |
 
 ### 12.2 Design Trade-offs
 
-| Trade-off | Choice Made | Cost |
-|-----------|-------------|------|
-| No account recovery | Security over convenience | Lost keys = lost access |
-| Split-key sharing | Security over simplicity | Extra step for users |
-| No server-side search | Privacy over features | Client-only search |
-| Random nonces | Security over determinism | Slightly larger ciphertext |
+| Trade-off                | Choice Made               | Cost                        |
+| ------------------------ | ------------------------- | --------------------------- |
+| No account recovery      | Security over convenience | Lost keys = lost access     |
+| Split-key sharing        | Security over simplicity  | Extra step for users        |
+| No server-side search    | Privacy over features     | Client-only search          |
+| Random nonces            | Security over determinism | Slightly larger ciphertext  |
+| No native mobile clients | Auditability over reach   | Desktop-only primary client |
 
 ### 12.3 Potential Attack Scenarios
 
@@ -1260,11 +1298,11 @@ Defense: P2P helps, padding helps, but not perfect.
 
 ### 12.4 UX Challenges
 
-| Challenge | Mitigation |
-|-----------|------------|
-| Key backup complexity | Clear UX, recovery phrase |
-| Split-key friction | Optional for low-security shares |
-| No password recovery | Extensive warnings, backup prompts |
+| Challenge             | Mitigation                         |
+| --------------------- | ---------------------------------- |
+| Key backup complexity | Clear UX, recovery phrase          |
+| Split-key friction    | Optional for low-security shares   |
+| No password recovery  | Extensive warnings, backup prompts |
 
 ---
 
@@ -1273,6 +1311,7 @@ Defense: P2P helps, padding helps, but not perfect.
 ### 13.1 Legal Status of Strong Encryption
 
 **In most jurisdictions (US, EU, etc.):**
+
 - Writing encryption software: **LEGAL**
 - Selling encryption software: **LEGAL**
 - Open-source crypto: **LEGAL**
@@ -1299,15 +1338,16 @@ This is exactly how Signal and Proton respond to legal requests.
 
 ### 13.3 What Could Attract Attention
 
-| Trigger | Response |
-|---------|----------|
-| Heavy criminal usage | Cooperate with "no data" response |
-| Marketing as "untraceable" | Avoid this language |
-| Hosting illegal content | Blobs are encrypted - no moderation possible |
+| Trigger                    | Response                                     |
+| -------------------------- | -------------------------------------------- |
+| Heavy criminal usage       | Cooperate with "no data" response            |
+| Marketing as "untraceable" | Avoid this language                          |
+| Hosting illegal content    | Blobs are encrypted - no moderation possible |
 
 ### 13.4 Jurisdictional Considerations
 
 Prefer hosting in privacy-friendly jurisdictions:
+
 - Switzerland
 - Iceland
 - Netherlands
@@ -1315,6 +1355,7 @@ Prefer hosting in privacy-friendly jurisdictions:
 ### 13.5 Export Control
 
 Cryptographic software may be subject to export controls:
+
 - Avoid distribution to sanctioned countries
 - Standard open-source exemptions usually apply
 
@@ -1332,6 +1373,7 @@ This specification defines a file sharing system that:
 4. **Uses proven cryptography**: XChaCha20, Curve25519, Ed25519, BLAKE3
 5. **Targets real threats**: Server breaches, insider attacks, surveillance
 6. **Acknowledges limitations**: Endpoints, coercion, human error
+7. **Maintains a minimal attack surface**: Desktop-first design with no native mobile clients, keeping the auditable codebase focused and tractable
 
 ### 14.2 Why This Matters
 
@@ -1342,13 +1384,14 @@ This is not overengineering. Every feature addresses a real threat:
 - WireGuard proved VPNs could be both fast AND secure
 
 This system aims to prove that file sharing can be:
+
 - Maximally secure (zero-trust, forward secrecy)
 - Maximally private (anonymous identity, no metadata)
 - Maximally usable (premium UX, sensible defaults)
 
 ### 14.3 The Vision Realized
 
-> *"A system where privacy feels natural, security feels invisible, UX feels premium, power users feel like gods, normal users feel safe."*
+> _"A system where privacy feels natural, security feels invisible, UX feels premium, power users feel like gods, normal users feel safe."_
 
 This specification provides the blueprint. The implementation plan follows.
 

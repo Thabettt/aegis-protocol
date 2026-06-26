@@ -1,8 +1,9 @@
 # Cryptographic Foundations for Zero-Trust Secure File Sharing
 
 **Author:** Abdulaziz  
-**Project:** Secure File Sharing System (Codename: Vault)  
-**Date:** December 26, 2025
+**Project:** Secure File Sharing Protocol (Codename: Aegis)  
+**Date:** July 26, 2026
+**Revision:** v1.1 — Scope refined to desktop and web clients only (see §10.3)
 
 ---
 
@@ -131,12 +132,14 @@ XChaCha20 solves this by extending the nonce to 192 bits (24 bytes) through a ke
 2. Use the remaining 64 bits as the standard nonce with the subkey
 
 **Mathematical representation:**
+
 ```
 HChaCha20(key, nonce[0:16]) → subkey
 ChaCha20(subkey, 0 || nonce[16:24]) → keystream
 ```
 
 This 192-bit nonce provides:
+
 - **Random nonce safety**: The birthday bound is now 2^96, allowing virtually unlimited messages with random nonces
 - **No nonce tracking**: Applications can generate random nonces without complex state management
 - **Simplified key management**: A single key can safely encrypt far more messages
@@ -158,6 +161,7 @@ tag = ((c₁ × r^n + c₂ × r^(n-1) + ... + cₙ × r¹) mod p) + s
 ```
 
 Where:
+
 - `cᵢ` are 128-bit message chunks with a high bit set
 - `r` is a secret clamped value (certain bits cleared for security)
 - `s` is a one-time pad for the final result
@@ -180,12 +184,14 @@ Since the nonce is unique for each message, the Poly1305 key is automatically un
 The complete XChaCha20-Poly1305 AEAD construction works as follows:
 
 **Encryption:**
+
 1. Derive subkey using HChaCha20(key, nonce[0:16])
 2. Generate Poly1305 key from ChaCha20(subkey, 0 || nonce[16:24], counter=0)
 3. Encrypt plaintext: ciphertext = plaintext ⊕ ChaCha20(subkey, nonce, counter=1...)
 4. Authenticate: tag = Poly1305(poly_key, AAD || padding || ciphertext || padding || lengths)
 
 **Decryption:**
+
 1. Derive subkey and Poly1305 key identically
 2. Verify tag matches computed value
 3. If valid, decrypt ciphertext; otherwise, reject
@@ -194,15 +200,15 @@ The Associated Data (AD) allows authenticating header information that should no
 
 ### 2.6 Security Properties
 
-| Property | Guarantee |
-|----------|-----------|
-| Key size | 256 bits |
-| Nonce size | 192 bits (XChaCha20) |
-| Tag size | 128 bits |
-| Security level | 128-bit security for all operations |
-| Nonce reuse | Complete security failure (confidentiality AND authenticity) |
-| Timing attacks | Resistant by design |
-| Cache-timing attacks | Resistant by design |
+| Property             | Guarantee                                                    |
+| -------------------- | ------------------------------------------------------------ |
+| Key size             | 256 bits                                                     |
+| Nonce size           | 192 bits (XChaCha20)                                         |
+| Tag size             | 128 bits                                                     |
+| Security level       | 128-bit security for all operations                          |
+| Nonce reuse          | Complete security failure (confidentiality AND authenticity) |
+| Timing attacks       | Resistant by design                                          |
+| Cache-timing attacks | Resistant by design                                          |
 
 ### 2.7 Why XChaCha20-Poly1305 for Secure File Sharing
 
@@ -210,7 +216,7 @@ For a zero-trust file sharing system, XChaCha20-Poly1305 is ideal because:
 
 1. **Per-file ephemeral keys**: Each file can use a unique key without nonce tracking
 2. **Random nonces**: 192-bit nonces can be randomly generated without collision risk
-3. **Software performance**: No hardware acceleration required, critical for mobile/web
+3. **Software performance**: No hardware acceleration required, delivering excellent performance on any platform
 4. **Authenticated encryption**: Prevents silent file corruption or tampering
 5. **Well-analyzed**: Used in TLS 1.3, adopted by major protocols, extensively studied
 
@@ -265,16 +271,17 @@ Shared secret = a × B = b × A = ab × G
 ```
 
 The "clamping" operation modifies the private key bytes to ensure security:
+
 - Set lowest 3 bits to 0 (ensures point is on the main subgroup)
 - Set highest bit to 0 and second-highest to 1 (prevents timing attacks)
 
 #### 3.2.3 Security Properties
 
-| Property | Value |
-|----------|-------|
-| Key size | 256 bits (32 bytes) |
-| Security level | 128 bits |
-| Output size | 256 bits (32 bytes) |
+| Property          | Value                            |
+| ----------------- | -------------------------------- |
+| Key size          | 256 bits (32 bytes)              |
+| Security level    | 128 bits                         |
+| Output size       | 256 bits (32 bytes)              |
 | Best known attack | Pollard's rho: ~2^125 operations |
 
 #### 3.2.4 Why Not NIST Curves?
@@ -299,6 +306,7 @@ Ed25519 is an EdDSA (Edwards-curve Digital Signature Algorithm) implementation u
 #### 3.3.1 Algorithm Overview
 
 **Key Generation:**
+
 ```
 secret = 32 random bytes
 h = SHA-512(secret) → 64 bytes
@@ -308,6 +316,7 @@ A = a × B           # Public key (B is base point)
 ```
 
 **Signing (message M):**
+
 ```
 r = SHA-512(prefix || M) mod ℓ
 R = r × B
@@ -317,6 +326,7 @@ signature = (R, s)  # 64 bytes total
 ```
 
 **Verification:**
+
 ```
 k = SHA-512(R || A || M) mod ℓ
 Check: s × B = R + k × A
@@ -334,24 +344,26 @@ This eliminates the need for a random number generator during signing. Poor RNG 
 
 #### 3.3.3 Security Features
 
-| Property | Guarantee |
-|----------|-----------|
-| Security level | 128 bits (requires ~2^128 operations to forge) |
-| Collision resistance | Relies on SHA-512's collision resistance |
-| RNG failures | Immune (deterministic signatures) |
-| Side-channel resistance | Designed for constant-time implementation |
-| Small subgroup attacks | Immune by design |
+| Property                | Guarantee                                      |
+| ----------------------- | ---------------------------------------------- |
+| Security level          | 128 bits (requires ~2^128 operations to forge) |
+| Collision resistance    | Relies on SHA-512's collision resistance       |
+| RNG failures            | Immune (deterministic signatures)              |
+| Side-channel resistance | Designed for constant-time implementation      |
+| Small subgroup attacks  | Immune by design                               |
 
 ### 3.4 Application in File Sharing
 
 In our secure file sharing system, these curves serve distinct purposes:
 
 **Curve25519 (X25519) for Key Exchange:**
+
 - Generating shared secrets for file encryption keys
 - Per-file ephemeral key pairs
 - Recipient-specific key encapsulation
 
 **Ed25519 for Signatures:**
+
 - Signing encrypted file packages
 - Verifying sender authenticity
 - Signing metadata and protocol messages
@@ -363,6 +375,7 @@ In our secure file sharing system, these curves serve distinct purposes:
 ### 4.1 The BLAKE Family
 
 BLAKE3 is the latest iteration of the BLAKE hash function family:
+
 - **BLAKE**: SHA-3 finalist (2010)
 - **BLAKE2**: Faster than MD5, SHA-1, SHA-2, and BLAKE (2012)
 - **BLAKE3**: Tree-structured, parallelizable, even faster (2020)
@@ -406,35 +419,36 @@ Each round applies the quarter-round mixing function (similar to ChaCha20) to a 
 
 BLAKE3 supports multiple modes through domain separation:
 
-| Mode | Purpose | Key |
-|------|---------|-----|
-| Hash | General hashing | None |
-| Keyed Hash (MAC) | Message authentication | 256-bit key |
+| Mode                 | Purpose                | Key                  |
+| -------------------- | ---------------------- | -------------------- |
+| Hash                 | General hashing        | None                 |
+| Keyed Hash (MAC)     | Message authentication | 256-bit key          |
 | Key Derivation (KDF) | Deriving multiple keys | Context string + IKM |
 
 ### 4.4 Performance Characteristics
 
 BLAKE3's performance is remarkable:
 
-| Comparison | BLAKE3 Speed Advantage |
-|------------|----------------------|
-| vs SHA-256 | ~12× faster |
-| vs SHA-512 | ~8× faster |
-| vs BLAKE2b | ~4× faster |
-| vs SHA3-256 | ~15× faster |
+| Comparison  | BLAKE3 Speed Advantage |
+| ----------- | ---------------------- |
+| vs SHA-256  | ~12× faster            |
+| vs SHA-512  | ~8× faster             |
+| vs BLAKE2b  | ~4× faster             |
+| vs SHA3-256 | ~15× faster            |
 
 On a modern x86-64 processor with AVX2:
+
 - Single-threaded: ~7 GB/s
 - Multi-threaded: Scales linearly with cores
 
 ### 4.5 Security Properties
 
-| Property | Value |
-|----------|-------|
-| Output size | 256 bits default (extendable) |
-| Security level | 128-bit collision resistance |
-| Preimage resistance | 256 bits |
-| Length extension | Immune (Merkle tree design) |
+| Property            | Value                         |
+| ------------------- | ----------------------------- |
+| Output size         | 256 bits default (extendable) |
+| Security level      | 128-bit collision resistance  |
+| Preimage resistance | 256 bits                      |
+| Length extension    | Immune (Merkle tree design)   |
 
 ### 4.6 Application in File Sharing
 
@@ -452,6 +466,7 @@ BLAKE3 serves multiple roles in secure file sharing:
 ### 5.1 The Key Derivation Problem
 
 Cryptographic protocols often need to:
+
 - Convert a shared Diffie-Hellman secret into symmetric keys
 - Derive multiple independent keys from one master secret
 - "Stretch" limited-entropy input into high-quality keying material
@@ -497,24 +512,26 @@ OKM = T(1) || T(2) || ... (truncated to L bytes)
 
 ### 5.3 Security Properties
 
-| Property | Guarantee |
-|----------|-----------|
-| Output uniformity | Indistinguishable from random |
-| Key separation | Different `info` → independent keys |
-| Entropy preservation | Full entropy of IKM preserved |
-| Forward secrecy | PRK not recoverable from OKM |
+| Property             | Guarantee                           |
+| -------------------- | ----------------------------------- |
+| Output uniformity    | Indistinguishable from random       |
+| Key separation       | Different `info` → independent keys |
+| Entropy preservation | Full entropy of IKM preserved       |
+| Forward secrecy      | PRK not recoverable from OKM        |
 
 ### 5.4 Application in File Sharing
 
 HKDF is used throughout the secure file sharing system:
 
 1. **From DH secret to file key**:
+
    ```
    PRK = HKDF-Extract(salt, DH_shared_secret)
    file_key = HKDF-Expand(PRK, "file-encryption", 32)
    ```
 
 2. **Multiple keys from one secret**:
+
    ```
    encryption_key = HKDF-Expand(PRK, "encryption", 32)
    mac_key = HKDF-Expand(PRK, "mac", 32)
@@ -614,6 +631,7 @@ Handshake patterns are named with letters indicating what keys are known or tran
 - `ee, es, se, ss`: DH operations between key types
 
 Examples:
+
 - **NN**: No static keys (anonymous, forward-secret)
 - **NK**: Initiator knows responder's static key
 - **XX**: Both parties exchange static keys
@@ -623,12 +641,12 @@ Examples:
 
 Different patterns provide different guarantees:
 
-| Property | Description |
-|----------|-------------|
-| Forward secrecy | Session keys protected even if static keys compromised |
-| Identity hiding | Static keys transmitted encrypted |
-| Mutual authentication | Both parties verified |
-| 0-RTT encryption | Encrypted data in first message |
+| Property              | Description                                            |
+| --------------------- | ------------------------------------------------------ |
+| Forward secrecy       | Session keys protected even if static keys compromised |
+| Identity hiding       | Static keys transmitted encrypted                      |
+| Mutual authentication | Both parties verified                                  |
+| 0-RTT encryption      | Encrypted data in first message                        |
 
 ### 7.5 Application in File Sharing
 
@@ -636,9 +654,10 @@ The Noise Protocol is ideal for:
 
 1. **P2P file transfers**: Establishing encrypted tunnels between clients
 2. **Server communication**: Authenticated, encrypted channels
-3. **Mobile-to-desktop linking**: Device trust establishment
+3. **Cross-device linking**: Device trust establishment between a user's own desktop and web sessions
 
 For peer-to-peer file transfers, a pattern like **XX** provides:
+
 - Mutual authentication
 - Forward secrecy
 - Identity hiding
@@ -729,6 +748,7 @@ Recipient: receives ciphertext → decrypt(key) → plaintext
 #### 9.2.2 Key Management
 
 Keys must be:
+
 - Generated locally on client devices
 - Never transmitted to servers
 - Protected at rest (encrypted storage)
@@ -737,6 +757,7 @@ Keys must be:
 #### 9.2.3 Zero Knowledge
 
 The server should have "zero knowledge" of:
+
 - File contents
 - File names (should be encrypted)
 - User identities beyond what's necessary
@@ -745,14 +766,15 @@ The server should have "zero knowledge" of:
 
 E2EE protects against:
 
-| Threat | Protection |
-|--------|------------|
-| Server breach | Server only has meaningless ciphertext |
-| Insider attack | Employees cannot access data |
-| Legal compulsion | Provider cannot comply (has no data) |
-| Network sniffing | Traffic already encrypted |
+| Threat           | Protection                             |
+| ---------------- | -------------------------------------- |
+| Server breach    | Server only has meaningless ciphertext |
+| Insider attack   | Employees cannot access data           |
+| Legal compulsion | Provider cannot comply (has no data)   |
+| Network sniffing | Traffic already encrypted              |
 
 E2EE does NOT protect against:
+
 - Compromised endpoints (malware on user device)
 - Key theft (attacker gets user's private key)
 - Traffic analysis (timing, volume patterns)
@@ -806,6 +828,7 @@ fn main() {
 ```
 
 The compiler enforces that at any time, you can have either:
+
 - One mutable reference, OR
 - Any number of immutable references
 
@@ -814,6 +837,7 @@ This eliminates data races at compile time.
 #### 10.1.3 No Runtime Overhead
 
 Unlike garbage-collected languages, Rust achieves memory safety at compile time:
+
 - No GC pauses
 - Predictable performance
 - Suitable for real-time systems
@@ -824,13 +848,13 @@ Tauri is a framework for building desktop applications with web technologies (HT
 
 #### 10.2.1 Security Advantages Over Electron
 
-| Feature | Electron | Tauri |
-|---------|----------|-------|
-| Runtime | Bundled Chromium | System WebView |
-| Binary size | 150+ MB | 3-10 MB |
-| Memory usage | High | Low |
-| Security updates | Manual | OS handles WebView |
-| Native access | Node.js (many APIs exposed) | Explicit Rust APIs |
+| Feature          | Electron                    | Tauri              |
+| ---------------- | --------------------------- | ------------------ |
+| Runtime          | Bundled Chromium            | System WebView     |
+| Binary size      | 150+ MB                     | 3-10 MB            |
+| Memory usage     | High                        | Low                |
+| Security updates | Manual                      | OS handles WebView |
+| Native access    | Node.js (many APIs exposed) | Explicit Rust APIs |
 
 #### 10.2.2 Trust Boundaries
 
@@ -860,15 +884,33 @@ Tauri uses a capability-based permission model:
 
 ```json
 {
-  "permissions": [
-    "fs:read-files",
-    "shell:execute",
-    "http:request"
-  ]
+  "permissions": ["fs:read-files", "shell:execute", "http:request"]
 }
 ```
 
 Applications must explicitly request capabilities, enforcing least privilege.
+
+### 10.3 Scope Decision: Desktop and Web Only — No Native Mobile Clients
+
+This system deliberately excludes native mobile applications (Android/iOS) from its scope. This is a principled security and engineering decision, not a limitation:
+
+#### 10.3.1 Security Rationale
+
+| Concern                                      | Explanation                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Expanded attack surface**                  | Each native mobile platform (Android via JNI/FFI, iOS via Swift FFI) introduces an entirely new set of platform-specific bindings, OS interactions, and memory boundaries. Every FFI bridge is a potential source of use-after-free, double-free, or type confusion bugs — the exact class of vulnerabilities Rust was chosen to eliminate. |
+| **Platform-imposed key storage constraints** | Android Keystore and iOS Secure Enclave have opaque, vendor-controlled behaviors. Bugs and backdoors in hardware-backed keystores are documented (e.g., Samsung TrustZone CVEs, Qualcomm TEE escapes). Relying on them for root-of-trust moves security guarantees outside our auditable codebase.                                          |
+| **OS-level telemetry and data leakage**      | Mobile operating systems routinely snapshot app state for task switchers, back up app data to cloud services (iCloud, Google Backup), index file contents for search (Spotlight), and log IPC calls. Preventing these leaks requires per-OS workarounds that are fragile, version-dependent, and unverifiable.                              |
+| **App store gatekeeping as a threat vector** | Distribution through the Apple App Store and Google Play introduces a trusted third party into the delivery chain. Store-level code injection (e.g., XcodeGhost), forced metadata disclosure (privacy nutrition labels), and the ability of platform vendors to remotely revoke or modify apps all conflict with zero-trust principles.     |
+| **Reduced auditability**                     | A security audit of the Rust core + Tauri desktop app is a tractable, well-bounded problem. Adding two native mobile codebases (Kotlin + JNI, Swift + FFI) with platform-specific secure storage, biometric APIs, and push notification integrations roughly triples the audit surface without proportional user benefit.                   |
+
+#### 10.3.2 Engineering Rationale
+
+Maintaining native mobile apps would require dedicated platform expertise (Kotlin/Android, Swift/iOS), separate CI/CD pipelines, platform-specific testing matrices, and ongoing compliance with frequently changing app store policies. For a security-first project, this effort is better invested in hardening the core cryptographic layer and the desktop client.
+
+#### 10.3.3 What Users Get Instead
+
+Desktop users are the primary audience for a tool designed around secure file sharing with cryptographic identity management. The Tauri-based desktop application provides full access to all system features — encryption, decryption, split-key sharing, P2P transfers, and the secure local vault — across Windows, macOS, and Linux from a single auditable codebase. A future web client (with deliberately limited functionality due to browser sandbox constraints) may serve as a lightweight companion for receiving shared files, but it does not replace the desktop application as the primary trusted client.
 
 ---
 
@@ -887,18 +929,19 @@ Libsodium is a modern cryptographic library forked from NaCl (Networking and Cry
 
 #### 11.1.2 Core Algorithms
 
-| Category | Algorithm |
-|----------|-----------|
-| AEAD | XChaCha20-Poly1305 |
-| Key exchange | X25519 |
-| Signatures | Ed25519 |
-| Hashing | BLAKE2b |
-| Password hashing | Argon2id |
-| Key derivation | HKDF |
+| Category         | Algorithm          |
+| ---------------- | ------------------ |
+| AEAD             | XChaCha20-Poly1305 |
+| Key exchange     | X25519             |
+| Signatures       | Ed25519            |
+| Hashing          | BLAKE2b            |
+| Password hashing | Argon2id           |
+| Key derivation   | HKDF               |
 
 #### 11.1.3 Security Audit Results
 
 A comprehensive security audit found:
+
 - No critical vulnerabilities
 - Clean static analysis results
 - Best practices followed throughout
@@ -910,6 +953,7 @@ For Rust implementation, the ecosystem offers:
 #### 11.2.1 ring
 
 Developed by Brian Smith (former Firefox security engineer), ring focuses on:
+
 - Minimal code size
 - Maximum security
 - No unsafe Rust where avoidable
@@ -918,11 +962,13 @@ Developed by Brian Smith (former Firefox security engineer), ring focuses on:
 #### 11.2.2 dalek-cryptography
 
 The Dalek crates provide pure-Rust implementations:
+
 - `curve25519-dalek`: Core curve operations
 - `x25519-dalek`: X25519 key exchange
 - `ed25519-dalek`: Ed25519 signatures
 
 Features:
+
 - Pure Rust (no C dependencies)
 - Constant-time by default
 - SIMD acceleration when available
@@ -930,6 +976,7 @@ Features:
 #### 11.2.3 chacha20poly1305
 
 A pure-Rust AEAD implementation:
+
 - XChaCha20-Poly1305 support
 - SIMD acceleration
 - `no_std` compatible
@@ -950,25 +997,27 @@ For our system, library selection prioritizes:
 
 ### 12.1 Existing Solutions Overview
 
-| Solution | Encryption | Server Knowledge | Anonymity |
-|----------|------------|------------------|-----------|
-| Proton Drive | E2EE (OpenPGP) | Zero-access | Email identity |
-| Tresorit | E2EE (AES-256) | Zero-knowledge | Account identity |
-| OnionShare | E2EE (Tor) | No server | High (Tor) |
-| Sync.com | E2EE | Zero-knowledge | Account identity |
-| Dropbox | Server-side only | Full access | Account identity |
+| Solution     | Encryption       | Server Knowledge | Anonymity        |
+| ------------ | ---------------- | ---------------- | ---------------- |
+| Proton Drive | E2EE (OpenPGP)   | Zero-access      | Email identity   |
+| Tresorit     | E2EE (AES-256)   | Zero-knowledge   | Account identity |
+| OnionShare   | E2EE (Tor)       | No server        | High (Tor)       |
+| Sync.com     | E2EE             | Zero-knowledge   | Account identity |
+| Dropbox      | Server-side only | Full access      | Account identity |
 
 ### 12.2 Feature Comparison
 
 #### 12.2.1 Proton Drive
 
 **Strengths:**
+
 - OpenPGP-based encryption
 - Swiss jurisdiction
 - Open source
 - Integration with Proton ecosystem
 
 **Limitations:**
+
 - Email-based identity (metadata)
 - Not fully anonymous
 - No P2P option
@@ -976,11 +1025,13 @@ For our system, library selection prioritizes:
 #### 12.2.2 Tresorit
 
 **Strengths:**
+
 - Business-grade features
 - Compliance certifications (HIPAA, GDPR)
 - Granular access controls
 
 **Limitations:**
+
 - Account-based identity
 - Requires trust in service
 - Closed source
@@ -988,11 +1039,13 @@ For our system, library selection prioritizes:
 #### 12.2.3 OnionShare
 
 **Strengths:**
+
 - Highest anonymity (Tor)
 - No server storage
 - Fully open source
 
 **Limitations:**
+
 - Requires Tor (slow)
 - Both parties must be online
 - No persistent storage
@@ -1001,16 +1054,16 @@ For our system, library selection prioritizes:
 
 No existing solution provides ALL of:
 
-| Feature | Available | Missing in All |
-|---------|-----------|---------------|
-| E2EE | ✓ All above | |
-| Zero metadata | ✓ OnionShare | Proton, Tresorit have some |
-| Anonymous identity | ✓ OnionShare | Others require registration |
-| Split-key delivery | ✗ None | **All missing** |
-| Per-file ephemeral keys | ✗ None | **All missing** |
-| Offline recipient | ✓ Cloud storage | OnionShare |
-| P2P option | ✓ OnionShare | Others |
-| Encrypted search | ✗ None | **All missing** |
+| Feature                 | Available       | Missing in All              |
+| ----------------------- | --------------- | --------------------------- |
+| E2EE                    | ✓ All above     |                             |
+| Zero metadata           | ✓ OnionShare    | Proton, Tresorit have some  |
+| Anonymous identity      | ✓ OnionShare    | Others require registration |
+| Split-key delivery      | ✗ None          | **All missing**             |
+| Per-file ephemeral keys | ✗ None          | **All missing**             |
+| Offline recipient       | ✓ Cloud storage | OnionShare                  |
+| P2P option              | ✓ OnionShare    | Others                      |
+| Encrypted search        | ✗ None          | **All missing**             |
 
 ### 12.4 Our System's Differentiation
 
@@ -1031,16 +1084,16 @@ The proposed system uniquely combines:
 
 This research has examined the complete cryptographic foundation for a zero-trust secure file sharing system:
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Symmetric encryption | XChaCha20-Poly1305 | File encryption |
-| Key exchange | X25519 (Curve25519) | Establishing shared secrets |
-| Digital signatures | Ed25519 | Authentication, integrity |
-| Hashing | BLAKE3 | Integrity, content addressing |
-| Key derivation | HKDF | Deriving multiple keys |
-| Handshake protocol | Noise Protocol | P2P secure channels |
-| Security model | Zero Trust | Architecture philosophy |
-| Implementation | Rust + Tauri | Secure, performant code |
+| Component            | Technology          | Purpose                       |
+| -------------------- | ------------------- | ----------------------------- |
+| Symmetric encryption | XChaCha20-Poly1305  | File encryption               |
+| Key exchange         | X25519 (Curve25519) | Establishing shared secrets   |
+| Digital signatures   | Ed25519             | Authentication, integrity     |
+| Hashing              | BLAKE3              | Integrity, content addressing |
+| Key derivation       | HKDF                | Deriving multiple keys        |
+| Handshake protocol   | Noise Protocol      | P2P secure channels           |
+| Security model       | Zero Trust          | Architecture philosophy       |
+| Implementation       | Rust + Tauri        | Secure, performant code       |
 
 ### 13.2 Security Properties Achieved
 
@@ -1071,25 +1124,25 @@ This research establishes the theoretical and practical foundation for implement
 
 ## 14. References
 
-1. Bernstein, D. J. (2005). "Curve25519: New Diffie-Hellman Speed Records." *Public Key Cryptography - PKC 2006*.
+1. Bernstein, D. J. (2005). "Curve25519: New Diffie-Hellman Speed Records." _Public Key Cryptography - PKC 2006_.
 
-2. Bernstein, D. J., et al. (2012). "High-Speed High-Security Signatures." *Journal of Cryptographic Engineering*.
+2. Bernstein, D. J., et al. (2012). "High-Speed High-Security Signatures." _Journal of Cryptographic Engineering_.
 
-3. Bernstein, D. J. (2008). "The Salsa20 Family of Stream Ciphers." *New Stream Cipher Designs*.
+3. Bernstein, D. J. (2008). "The Salsa20 Family of Stream Ciphers." _New Stream Cipher Designs_.
 
-4. O'Connor, J., et al. (2020). "BLAKE3: One Function, Fast Everywhere." *IACR Cryptology ePrint Archive*.
+4. O'Connor, J., et al. (2020). "BLAKE3: One Function, Fast Everywhere." _IACR Cryptology ePrint Archive_.
 
-5. Krawczyk, H. (2010). "Cryptographic Extraction and Key Derivation: The HKDF Scheme." *CRYPTO 2010*.
+5. Krawczyk, H. (2010). "Cryptographic Extraction and Key Derivation: The HKDF Scheme." _CRYPTO 2010_.
 
-6. Perrin, T., & Marlinspike, M. (2016). "The Double Ratchet Algorithm." *Signal Specifications*.
+6. Perrin, T., & Marlinspike, M. (2016). "The Double Ratchet Algorithm." _Signal Specifications_.
 
-7. Perrin, T. (2018). "The Noise Protocol Framework." *Noise Protocol Specification*.
+7. Perrin, T. (2018). "The Noise Protocol Framework." _Noise Protocol Specification_.
 
-8. Rose, S., et al. (2020). "Zero Trust Architecture." *NIST Special Publication 800-207*.
+8. Rose, S., et al. (2020). "Zero Trust Architecture." _NIST Special Publication 800-207_.
 
-9. Turan, M. S., et al. (2016). "Recommendation for Key Derivation Using Pseudorandom Functions." *NIST Special Publication 800-108*.
+9. Turan, M. S., et al. (2016). "Recommendation for Key Derivation Using Pseudorandom Functions." _NIST Special Publication 800-108_.
 
-10. Langley, A. (2020). "ChaCha20-Poly1305 Cipher Suites for TLS." *RFC 8439*.
+10. Langley, A. (2020). "ChaCha20-Poly1305 Cipher Suites for TLS." _RFC 8439_.
 
 11. Bernstein, D. J., & Lange, T. (2017). "SafeCurves: Choosing Safe Curves for Elliptic-Curve Cryptography." *https://safecurves.cr.yp.to*.
 

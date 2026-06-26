@@ -1,11 +1,12 @@
 # Implementation Plan
-## Zero-Trust Secure File Sharing System
 
-**Project Codename:** Vault  
+## Zero-Trust Secure File Sharing Protocol
+
+**Project Codename:** Aegis  
 **Author:** Abdulaziz  
-**Version:** 1.0  
-**Date:** December 26, 2025  
-**Estimated Duration:** 12-16 months (phased delivery)
+**Version:** 1.1  
+**Date:** July 26, 2026
+**Revision:** v1.1 — Scope refined to desktop and web clients only (mobile platforms removed)  
 
 ---
 
@@ -20,6 +21,7 @@ This implementation plan provides a detailed roadmap for building the zero-trust
 3. **Test everything**: Every crypto operation must be test-covered
 4. **Audit-ready code**: Write as if a security auditor reads every line
 5. **Minimal complexity**: Each added component must justify its existence
+6. **Minimal attack surface**: Every platform target increases the surface area an attacker can probe; only ship what can be fully audited and hardened
 
 ---
 
@@ -27,52 +29,64 @@ This implementation plan provides a detailed roadmap for building the zero-trust
 
 ### Core Technologies
 
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| **Core Language** | Rust | Latest stable (1.75+) |
-| **Desktop Framework** | Tauri | 2.0+ |
-| **Mobile - Android** | Kotlin + Rust FFI | Kotlin 1.9+ |
-| **Mobile - iOS** | Swift + Rust FFI | Swift 5.9+ |
-| **Server Runtime** | Rust (Tokio async) | Latest stable |
-| **Build System** | Cargo, npm | Latest |
+| Component             | Technology         | Version               |
+| --------------------- | ------------------ | --------------------- |
+| **Core Language**     | Rust               | Latest stable (1.75+) |
+| **Desktop Framework** | Tauri              | 2.0+                  |
+| **Server Runtime**    | Rust (Tokio async) | Latest stable         |
+| **Build System**      | Cargo, npm         | Latest                |
+
+### Why No Native Mobile Clients
+
+Native mobile applications (Android via Kotlin + Rust JNI, iOS via Swift + Rust FFI) have been deliberately excluded from scope. This is a security-driven decision:
+
+| Concern                                | Impact                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FFI bridge attack surface**          | Every JNI/FFI boundary is a potential source of use-after-free, double-free, or type confusion — the exact vulnerability class Rust is chosen to eliminate. Two additional FFI layers (Android JNI, iOS C-interop) roughly triple the number of unsafe boundary crossings that must be audited.          |
+| **Platform-controlled key storage**    | Android Keystore and iOS Secure Enclave are opaque, vendor-controlled subsystems. Documented vulnerabilities in hardware TEEs (Samsung TrustZone CVEs, Qualcomm TEE escapes) mean relying on them for root-of-trust moves security guarantees outside our auditable codebase.                            |
+| **OS-level data leakage**              | Mobile OSes routinely snapshot app state for task switchers, back up app data to cloud services (iCloud, Google Backup), index file contents for system search (Spotlight), and log IPC calls. Preventing these leaks requires per-OS workarounds that are fragile, version-dependent, and unverifiable. |
+| **App store as a trusted third party** | Distribution through Apple App Store and Google Play introduces gatekeepers who can inject code (cf. XcodeGhost), demand metadata disclosure, and remotely revoke or modify applications — all of which conflict with zero-trust principles.                                                             |
+| **Audit cost**                         | A security audit of the Rust core + Tauri desktop app is a tractable, well-bounded problem. Adding two native mobile codebases with platform-specific secure storage, biometric APIs, and push notification integrations roughly triples the audit surface without proportional security benefit.        |
+| **Engineering overhead**               | Maintaining native mobile apps requires dedicated platform expertise, separate CI/CD pipelines, platform-specific testing matrices, and ongoing compliance with frequently changing app store policies. This effort is better invested in hardening the cryptographic core.                              |
+
+Desktop users are the primary audience for a tool built around secure file sharing with cryptographic identity management. The Tauri desktop app delivers full functionality across Windows, macOS, and Linux from a single auditable codebase. A deliberately limited web client may serve as a companion for receiving shared files.
 
 ### Cryptographic Libraries
 
-| Purpose | Library | Crate |
-|---------|---------|-------|
-| AEAD Encryption | chacha20poly1305 | `chacha20poly1305` |
-| Key Exchange | x25519-dalek | `x25519-dalek` |
-| Digital Signatures | ed25519-dalek | `ed25519-dalek` |
-| Hashing | blake3 | `blake3` |
-| KDF | hkdf | `hkdf` |
-| Secure Random | rand | `rand` + `getrandom` |
-| Noise Protocol | snow | `snow` |
-| Password Hashing | argon2 | `argon2` |
+| Purpose            | Library          | Crate                |
+| ------------------ | ---------------- | -------------------- |
+| AEAD Encryption    | chacha20poly1305 | `chacha20poly1305`   |
+| Key Exchange       | x25519-dalek     | `x25519-dalek`       |
+| Digital Signatures | ed25519-dalek    | `ed25519-dalek`      |
+| Hashing            | blake3           | `blake3`             |
+| KDF                | hkdf             | `hkdf`               |
+| Secure Random      | rand             | `rand` + `getrandom` |
+| Noise Protocol     | snow             | `snow`               |
+| Password Hashing   | argon2           | `argon2`             |
 
 ### Server Technologies
 
-| Component | Technology |
-|-----------|-----------|
-| HTTP Framework | Axum |
-| Async Runtime | Tokio |
+| Component      | Technology                             |
+| -------------- | -------------------------------------- |
+| HTTP Framework | Axum                                   |
+| Async Runtime  | Tokio                                  |
 | Object Storage | S3-compatible (MinIO dev, AWS S3 prod) |
-| Rate Limiting | In-memory (tower-governor) |
-| Deployment | Docker, Kubernetes |
+| Rate Limiting  | In-memory (tower-governor)             |
+| Deployment     | Docker, Kubernetes                     |
 
 ### Client Technologies
 
-| Platform | Core | UI |
-|----------|------|-----|
-| Desktop | Rust (Tauri) | TypeScript/React |
-| Android | Rust core + JNI | Kotlin/Jetpack Compose |
-| iOS | Rust core + FFI | Swift/SwiftUI |
-| Web | Rust/WASM (limited) | TypeScript/React |
+| Platform | Core                | UI               |
+| -------- | ------------------- | ---------------- |
+| Desktop  | Rust (Tauri)        | TypeScript/React |
+| Web      | Rust/WASM (limited) | TypeScript/React |
 
 ---
 
-## Phase 0: Foundation (Weeks 1-4)
+## Phase 0: Foundation
 
 ### Objective
+
 Establish project structure, development environment, and documentation framework.
 
 ### 0.1 Repository Setup
@@ -94,8 +108,6 @@ vault/
 │   └── vault-server/           # Server binary
 ├── apps/
 │   ├── desktop/                # Tauri app
-│   ├── android/                # Android app
-│   ├── ios/                    # iOS app
 │   └── web/                    # Web app (limited)
 ├── docs/
 │   ├── architecture/
@@ -132,12 +144,12 @@ npm install -g pnpm
 
 Create initial documents:
 
-| Document | Location | Purpose |
-|----------|----------|---------|
-| Threat Model | `docs/threat-model/` | Formal threat analysis |
-| Security Invariants | `docs/security/INVARIANTS.md` | Non-negotiable rules |
-| API Specification | `docs/api/` | Protocol documentation |
-| Audit Log | `docs/audit/` | Security decision history |
+| Document            | Location                      | Purpose                   |
+| ------------------- | ----------------------------- | ------------------------- |
+| Threat Model        | `docs/threat-model/`          | Formal threat analysis    |
+| Security Invariants | `docs/security/INVARIANTS.md` | Non-negotiable rules      |
+| API Specification   | `docs/api/`                   | Protocol documentation    |
+| Audit Log           | `docs/audit/`                 | Security decision history |
 
 ### 0.4 Threat Model Document
 
@@ -145,6 +157,7 @@ Create initial documents:
 # docs/threat-model/THREAT_MODEL.md
 
 ## Protected Against
+
 1. Server-side data breaches
 2. Insider/administrator attacks
 3. Government data requests
@@ -152,12 +165,14 @@ Create initial documents:
 5. Mass surveillance
 
 ## NOT Protected Against (Explicit Non-Goals)
+
 1. Compromised endpoints (malware on user device)
 2. Malicious recipients (intentional disclosure)
 3. Physical coercion of users
 4. Global passive adversary with timing analysis
 
 ## Security Invariants
+
 1. Server NEVER possesses decryption keys
 2. All encryption happens client-side
 3. Every file has unique encryption key
@@ -180,7 +195,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --all-features
-      
+
   clippy:
     runs-on: ubuntu-latest
     steps:
@@ -189,7 +204,7 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy -- -D warnings
-      
+
   security-audit:
     runs-on: ubuntu-latest
     steps:
@@ -197,7 +212,7 @@ jobs:
       - uses: rustsec/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          
+
   fuzz:
     runs-on: ubuntu-latest
     steps:
@@ -218,9 +233,10 @@ jobs:
 
 ---
 
-## Phase 1: Cryptographic Core (Weeks 5-12)
+## Phase 1: Cryptographic Core
 
 ### Objective
+
 Implement the core cryptography module with comprehensive testing.
 
 ### 1.1 Crate Structure
@@ -282,7 +298,7 @@ impl FileKey {
         getrandom::getrandom(&mut key).expect("Failed to generate random key");
         Self(key)
     }
-    
+
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
@@ -301,7 +317,7 @@ impl Identity {
         let verifying_key = signing_key.verifying_key();
         Self { signing_key, verifying_key }
     }
-    
+
     pub fn public_key_bytes(&self) -> [u8; 32] {
         self.verifying_key.to_bytes()
     }
@@ -355,12 +371,12 @@ pub fn encrypt(
 ) -> Result<Vec<u8>, AeadError> {
     let cipher = XChaCha20Poly1305::new(key.as_bytes().into());
     let nonce = XNonce::from_slice(nonce);
-    
+
     let payload = Payload {
         msg: plaintext,
         aad,
     };
-    
+
     cipher
         .encrypt(nonce, payload)
         .map_err(|_| AeadError::EncryptionFailed)
@@ -375,12 +391,12 @@ pub fn decrypt(
 ) -> Result<Vec<u8>, AeadError> {
     let cipher = XChaCha20Poly1305::new(key.as_bytes().into());
     let nonce = XNonce::from_slice(nonce);
-    
+
     let payload = Payload {
         msg: ciphertext,
         aad,
     };
-    
+
     cipher
         .decrypt(nonce, payload)
         .map_err(|_| AeadError::DecryptionFailed)
@@ -415,14 +431,14 @@ pub fn derive_file_key(
 ) -> FileKey {
     // X25519 shared secret
     let shared_secret = our_secret.diffie_hellman(their_public);
-    
+
     // HKDF-SHA256 extract and expand
     let hk = Hkdf::<Sha256>::new(Some(salt), shared_secret.as_bytes());
-    
+
     let mut file_key = [0u8; 32];
     hk.expand(context, &mut file_key)
         .expect("HKDF expand failed");
-    
+
     FileKey::from_bytes(file_key)
 }
 
@@ -434,10 +450,10 @@ pub fn key_exchange_sender(
     let ephemeral = EphemeralKeypair::generate();
     let mut salt = [0u8; 32];
     getrandom::getrandom(&mut salt).expect("Failed to generate salt");
-    
+
     let context = [b"vault-file-encryption-v1", file_id].concat();
     let file_key = derive_file_key(&ephemeral.secret, recipient_public, &salt, &context);
-    
+
     (ephemeral, file_key, salt)
 }
 ```
@@ -511,13 +527,13 @@ impl EncryptedPackage {
     ) -> Result<Self, CryptoError> {
         // Generate ephemeral keypair and derive file key
         let (ephemeral, file_key, salt) = kex::key_exchange_sender(recipient_public, file_id);
-        
+
         // Generate nonce
         let nonce = aead::generate_nonce();
-        
+
         // Encrypt
         let ciphertext = aead::encrypt(&file_key, &nonce, plaintext, metadata)?;
-        
+
         // Create unsigned package
         let unsigned = UnsignedPackage {
             version: 1,
@@ -526,11 +542,11 @@ impl EncryptedPackage {
             nonce,
             ciphertext,
         };
-        
+
         // Sign the package
         let to_sign = unsigned.to_bytes();
         let signature = sign::sign(sender, &to_sign);
-        
+
         Ok(Self {
             version: unsigned.version,
             ephemeral_public: unsigned.ephemeral_public,
@@ -540,7 +556,7 @@ impl EncryptedPackage {
             signature: signature.to_bytes(),
         })
     }
-    
+
     /// Decrypt a package
     pub fn decrypt(
         &self,
@@ -560,12 +576,12 @@ impl EncryptedPackage {
         let to_verify = unsigned.to_bytes();
         let signature = ed25519_dalek::Signature::from_bytes(&self.signature);
         sign::verify(sender_public, &to_verify, &signature)?;
-        
+
         // Derive key
         let sender_ephemeral = x25519_dalek::PublicKey::from(self.ephemeral_public);
         let context = [b"vault-file-encryption-v1", file_id].concat();
         let file_key = kex::derive_file_key(recipient_secret, &sender_ephemeral, &self.salt, &context);
-        
+
         // Decrypt
         aead::decrypt(&file_key, &self.nonce, &self.ciphertext, expected_aad)
     }
@@ -580,7 +596,7 @@ impl EncryptedPackage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
         let sender = Identity::generate();
@@ -588,7 +604,7 @@ mod tests {
         let file_id = b"test-file-001";
         let plaintext = b"Hello, secure world!";
         let metadata = b"filename: test.txt";
-        
+
         let package = EncryptedPackage::create(
             &sender,
             &recipient.public,
@@ -596,17 +612,17 @@ mod tests {
             plaintext,
             metadata,
         ).unwrap();
-        
+
         let decrypted = package.decrypt(
             &recipient.secret,
             &sender.verifying_key,
             file_id,
             metadata,
         ).unwrap();
-        
+
         assert_eq!(decrypted, plaintext);
     }
-    
+
     #[test]
     fn test_tampered_ciphertext_fails() {
         let sender = Identity::generate();
@@ -614,7 +630,7 @@ mod tests {
         let file_id = b"test-file-002";
         let plaintext = b"Secret data";
         let metadata = b"";
-        
+
         let mut package = EncryptedPackage::create(
             &sender,
             &recipient.public,
@@ -622,20 +638,20 @@ mod tests {
             plaintext,
             metadata,
         ).unwrap();
-        
+
         // Tamper with ciphertext
         package.ciphertext[0] ^= 0xFF;
-        
+
         let result = package.decrypt(
             &recipient.secret,
             &sender.verifying_key,
             file_id,
             metadata,
         );
-        
+
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_wrong_sender_signature_fails() {
         let sender = Identity::generate();
@@ -644,7 +660,7 @@ mod tests {
         let file_id = b"test-file-003";
         let plaintext = b"Authenticated data";
         let metadata = b"";
-        
+
         let package = EncryptedPackage::create(
             &sender,
             &recipient.public,
@@ -652,7 +668,7 @@ mod tests {
             plaintext,
             metadata,
         ).unwrap();
-        
+
         // Try to verify with wrong public key
         let result = package.decrypt(
             &recipient.secret,
@@ -660,27 +676,27 @@ mod tests {
             file_id,
             metadata,
         );
-        
+
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_unique_keys_per_file() {
         let sender = Identity::generate();
         let recipient = EphemeralKeypair::generate();
-        
+
         let file1 = b"file-001";
         let file2 = b"file-002";
         let plaintext = b"Same content";
-        
+
         let package1 = EncryptedPackage::create(
             &sender, &recipient.public, file1, plaintext, b"",
         ).unwrap();
-        
+
         let package2 = EncryptedPackage::create(
             &sender, &recipient.public, file2, plaintext, b"",
         ).unwrap();
-        
+
         // Different ephemeral keys
         assert_ne!(package1.ephemeral_public, package2.ephemeral_public);
         // Different salts
@@ -733,9 +749,10 @@ fuzz_target!(|data: &[u8]| {
 
 ---
 
-## Phase 2: Identity System (Weeks 13-16)
+## Phase 2: Identity System
 
 ### Objective
+
 Implement the cryptographic identity system without personal identifiable information.
 
 ### 2.1 Identity Storage
@@ -756,7 +773,7 @@ impl IdentityStore {
     /// Create or load identity with passphrase protection
     pub fn unlock(&self, passphrase: &str) -> Result<Identity, IdentityError> {
         let encrypted = std::fs::read(&self.path)?;
-        
+
         // Derive key from passphrase using Argon2id
         let salt = &encrypted[0..32];
         let argon2 = Argon2::default();
@@ -764,31 +781,31 @@ impl IdentityStore {
             passphrase.as_bytes(),
             salt,
         )?;
-        
+
         // Decrypt identity
         let nonce = &encrypted[32..56];
         let ciphertext = &encrypted[56..];
-        
+
         let identity_bytes = aead::decrypt(
             &FileKey::from_slice(&key.hash.unwrap().as_bytes()[0..32]),
             nonce.try_into()?,
             ciphertext,
             b"identity-encryption",
         )?;
-        
+
         Identity::from_bytes(&identity_bytes)
     }
-    
+
     /// Save identity encrypted with passphrase
     pub fn save(&self, identity: &Identity, passphrase: &str) -> Result<(), IdentityError> {
         // Generate salt
         let mut salt = [0u8; 32];
         getrandom::getrandom(&mut salt)?;
-        
+
         // Derive key from passphrase
         let argon2 = Argon2::default();
         let key = argon2.hash_password(passphrase.as_bytes(), &salt)?;
-        
+
         // Encrypt identity
         let nonce = aead::generate_nonce();
         let ciphertext = aead::encrypt(
@@ -797,13 +814,13 @@ impl IdentityStore {
             &identity.to_bytes(),
             b"identity-encryption",
         )?;
-        
+
         // Write: salt || nonce || ciphertext
         let mut output = Vec::with_capacity(32 + 24 + ciphertext.len());
         output.extend_from_slice(&salt);
         output.extend_from_slice(&nonce);
         output.extend_from_slice(&ciphertext);
-        
+
         std::fs::write(&self.path, output)?;
         Ok(())
     }
@@ -829,11 +846,11 @@ pub fn generate_recovery_phrase(identity: &Identity) -> String {
 pub fn recover_from_phrase(phrase: &str) -> Result<Identity, RecoveryError> {
     let mnemonic = Mnemonic::parse_in(Language::English, phrase)?;
     let entropy = mnemonic.to_entropy();
-    
+
     let signing_key = ed25519_dalek::SigningKey::from_bytes(
         entropy.try_into().map_err(|_| RecoveryError::InvalidPhrase)?
     );
-    
+
     Ok(Identity {
         signing_key,
         verifying_key: signing_key.verifying_key(),
@@ -846,14 +863,14 @@ pub fn recover_from_phrase(phrase: &str) -> Result<Identity, RecoveryError> {
 - [ ] Identity generation and storage
 - [ ] Passphrase-based encryption with Argon2
 - [ ] Recovery phrase generation/recovery
-- [ ] Device linking protocol
 - [ ] Key export/import
 
 ---
 
-## Phase 3: Server Infrastructure (Weeks 17-24)
+## Phase 3: Server Infrastructure
 
 ### Objective
+
 Build the deliberately "dumb" server that stores only encrypted blobs.
 
 ### 3.1 Server Structure
@@ -871,10 +888,10 @@ use tower_http::cors::CorsLayer;
 async fn main() {
     // Configure server
     let config = Config::from_env();
-    
+
     // Initialize storage
     let storage = S3Storage::new(&config.s3_endpoint, &config.s3_bucket).await;
-    
+
     // Build router
     let app = Router::new()
         .route("/health", get(health_check))
@@ -883,7 +900,7 @@ async fn main() {
         .route("/delete/:blob_id", delete(delete_blob))
         .layer(CorsLayer::permissive())
         .with_state(AppState { storage });
-    
+
     // Run server
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -908,10 +925,10 @@ impl S3Storage {
     /// Returns randomly generated blob ID
     pub async fn store(&self, data: &[u8], ttl_hours: u32) -> Result<String, StorageError> {
         let blob_id = Uuid::new_v4().to_string();
-        
+
         // Calculate expiration
         let expires = chrono::Utc::now() + chrono::Duration::hours(ttl_hours as i64);
-        
+
         self.client
             .put_object()
             .bucket(&self.bucket)
@@ -920,10 +937,10 @@ impl S3Storage {
             .expires(expires.into())
             .send()
             .await?;
-        
+
         Ok(blob_id)
     }
-    
+
     /// Retrieve a blob
     pub async fn get(&self, blob_id: &str) -> Result<Vec<u8>, StorageError> {
         let response = self.client
@@ -932,11 +949,11 @@ impl S3Storage {
             .key(blob_id)
             .send()
             .await?;
-        
+
         let data = response.body.collect().await?.into_bytes().to_vec();
         Ok(data)
     }
-    
+
     /// Delete a blob
     pub async fn delete(&self, blob_id: &str) -> Result<(), StorageError> {
         self.client
@@ -945,7 +962,7 @@ impl S3Storage {
             .key(blob_id)
             .send()
             .await?;
-        
+
         Ok(())
     }
 }
@@ -964,7 +981,7 @@ pub fn rate_limit_layer() -> GovernorLayer {
         .burst_size(50)
         .finish()
         .unwrap();
-    
+
     GovernorLayer::new(config)
 }
 ```
@@ -1009,10 +1026,11 @@ pub fn setup_logging() {
 
 ---
 
-## Phase 4: Client Applications (Weeks 25-36)
+## Phase 4: Desktop Client Application
 
 ### Objective
-Build desktop and mobile clients with the crypto core.
+
+Build the Tauri desktop client with the crypto core.
 
 ### 4.1 Desktop (Tauri)
 
@@ -1066,7 +1084,7 @@ async fn encrypt_file(
 ```typescript
 // apps/desktop/src/lib/crypto.ts
 
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from "@tauri-apps/api/tauri";
 
 interface EncryptedPackage {
   version: number;
@@ -1079,9 +1097,9 @@ interface EncryptedPackage {
 
 export async function encryptFile(
   filePath: string,
-  recipientPublicKey: string
+  recipientPublicKey: string,
 ): Promise<EncryptedPackage> {
-  return await invoke('encrypt_file', {
+  return await invoke("encrypt_file", {
     path: filePath,
     recipientPublicKey,
   });
@@ -1089,38 +1107,12 @@ export async function encryptFile(
 
 export async function decryptFile(
   package: EncryptedPackage,
-  outputPath: string
+  outputPath: string,
 ): Promise<void> {
-  return await invoke('decrypt_file', {
+  return await invoke("decrypt_file", {
     package,
     outputPath,
   });
-}
-```
-
-### 4.3 Mobile Architecture
-
-```kotlin
-// apps/android/app/src/main/kotlin/com/vault/crypto/VaultCrypto.kt
-
-class VaultCrypto {
-    companion object {
-        init {
-            System.loadLibrary("vault_crypto_android")
-        }
-    }
-    
-    external fun generateIdentity(): ByteArray
-    external fun encryptFile(
-        plaintext: ByteArray,
-        recipientPublicKey: ByteArray,
-        fileId: ByteArray
-    ): ByteArray
-    external fun decryptFile(
-        encryptedPackage: ByteArray,
-        senderPublicKey: ByteArray,
-        fileId: ByteArray
-    ): ByteArray
 }
 ```
 
@@ -1128,16 +1120,15 @@ class VaultCrypto {
 
 - [ ] Tauri desktop app structure
 - [ ] React frontend with TypeScript
-- [ ] Android app with Kotlin + Rust FFI
-- [ ] iOS app with Swift + Rust FFI
 - [ ] Cross-platform file picker
-- [ ] Secure storage integration (Keychain/Keystore)
+- [ ] Secure storage integration (OS Keychain / Credential Manager)
 
 ---
 
-## Phase 5: Sharing Mechanisms (Weeks 37-44)
+## Phase 5: Sharing Mechanisms
 
 ### Objective
+
 Implement split-key sharing and link generation.
 
 ### 5.1 Share Link Protocol
@@ -1164,7 +1155,7 @@ impl ShareLink {
         let encoded = base64url::encode(&serde_json::to_vec(self).unwrap());
         format!("vault://share/{}", encoded)
     }
-    
+
     pub fn from_url(url: &str) -> Result<Self, ParseError> {
         let encoded = url.strip_prefix("vault://share/")?;
         let bytes = base64url::decode(encoded)?;
@@ -1204,40 +1195,35 @@ interface ShareDialogProps {
 }
 
 export function ShareDialog({ shareLink, shareKey }: ShareDialogProps) {
-  const [deliveryMethod, setDeliveryMethod] = useState<'qr' | 'copy' | 'nfc'>('qr');
-  
+  const [deliveryMethod, setDeliveryMethod] = useState<'qr' | 'copy'>('qr');
+
   return (
     <div className="share-dialog">
       <h2>Share File</h2>
-      
+
       <section className="share-link">
         <h3>Step 1: Send Link</h3>
         <p>Share this link via any channel:</p>
         <CopyableText value={shareLink} />
       </section>
-      
+
       <section className="share-key">
         <h3>Step 2: Deliver Key Separately</h3>
         <p className="warning">
           ⚠️ Do NOT send the key through the same channel as the link
         </p>
-        
+
         <Tabs value={deliveryMethod} onChange={setDeliveryMethod}>
           <Tab value="qr">QR Code</Tab>
           <Tab value="copy">Copy</Tab>
-          <Tab value="nfc">NFC</Tab>
         </Tabs>
-        
+
         {deliveryMethod === 'qr' && (
           <QRCode value={shareKey} size={256} />
         )}
-        
+
         {deliveryMethod === 'copy' && (
           <CopyableText value={shareKey} />
-        )}
-        
-        {deliveryMethod === 'nfc' && (
-          <NFCShareButton data={shareKey} />
         )}
       </section>
     </div>
@@ -1250,15 +1236,15 @@ export function ShareDialog({ shareLink, shareKey }: ShareDialogProps) {
 - [ ] Share link generation
 - [ ] Split-key architecture
 - [ ] QR code key delivery
-- [ ] NFC key delivery
 - [ ] Link expiration
 - [ ] Download tracking
 
 ---
 
-## Phase 6: P2P System (Weeks 45-52)
+## Phase 6: P2P System
 
 ### Objective
+
 Implement optional peer-to-peer transfers using Noise Protocol.
 
 ### 6.1 Noise Protocol Integration
@@ -1282,34 +1268,34 @@ impl P2PSession {
     ) -> Result<Self, P2PError> {
         let builder = Builder::new(NOISE_PATTERN.parse()?);
         let keypair = builder.generate_keypair()?;
-        
+
         let mut handshake = builder
             .local_private_key(&keypair.private)
             .remote_public_key(their_static_public)
             .build_initiator()?;
-        
+
         // Perform XX handshake
         let transport = perform_handshake(&mut handshake, stream).await?;
-        
+
         Ok(Self { transport })
     }
-    
+
     /// Accept P2P connection (as responder)
     pub async fn accept(
         our_static: &Keypair,
         stream: &mut TcpStream,
     ) -> Result<Self, P2PError> {
         let builder = Builder::new(NOISE_PATTERN.parse()?);
-        
+
         let mut handshake = builder
             .local_private_key(&our_static.private)
             .build_responder()?;
-        
+
         let transport = perform_handshake(&mut handshake, stream).await?;
-        
+
         Ok(Self { transport })
     }
-    
+
     /// Send encrypted data
     pub fn send(&mut self, plaintext: &[u8]) -> Result<Vec<u8>, P2PError> {
         let mut buf = vec![0u8; plaintext.len() + 16]; // Room for auth tag
@@ -1317,7 +1303,7 @@ impl P2PSession {
         buf.truncate(len);
         Ok(buf)
     }
-    
+
     /// Receive and decrypt data
     pub fn receive(&mut self, ciphertext: &[u8]) -> Result<Vec<u8>, P2PError> {
         let mut buf = vec![0u8; ciphertext.len()];
@@ -1338,9 +1324,10 @@ impl P2PSession {
 
 ---
 
-## Phase 7: Vault and Hardening (Weeks 53-60)
+## Phase 7: Vault and Hardening
 
 ### Objective
+
 Implement secure local vault and system hardening.
 
 ### 7.1 Secure Vault
@@ -1368,29 +1355,29 @@ impl SecureVault {
     pub fn store(&self, name: &str, data: &[u8]) -> Result<(), VaultError> {
         let nonce = aead::generate_nonce();
         let ciphertext = aead::encrypt(&self.key.file_key(), &nonce, data, name.as_bytes())?;
-        
+
         let path = self.path.join(blake3::hash(name.as_bytes()).to_hex());
         let mut file = std::fs::File::create(path)?;
         file.write_all(&nonce)?;
         file.write_all(&ciphertext)?;
-        
+
         Ok(())
     }
-    
+
     /// Retrieve a file from the vault
     pub fn retrieve(&self, name: &str) -> Result<Vec<u8>, VaultError> {
         let path = self.path.join(blake3::hash(name.as_bytes()).to_hex());
         let mut file = std::fs::File::open(path)?;
-        
+
         let mut nonce = [0u8; 24];
         file.read_exact(&mut nonce)?;
-        
+
         let mut ciphertext = Vec::new();
         file.read_to_end(&mut ciphertext)?;
-        
+
         aead::decrypt(&self.key.file_key(), &nonce, &ciphertext, name.as_bytes())
     }
-    
+
     /// Auto-wipe after inactivity
     pub fn check_timeout(&mut self) -> bool {
         if self.last_activity.elapsed() > self.lock_timeout {
@@ -1399,7 +1386,7 @@ impl SecureVault {
         }
         false
     }
-    
+
     /// Securely wipe vault contents
     pub fn wipe(&self) -> Result<(), VaultError> {
         for entry in std::fs::read_dir(&self.path)? {
@@ -1433,15 +1420,15 @@ impl SecureBuffer {
     pub fn new(size: usize) -> Self {
         Self { data: vec![0u8; size] }
     }
-    
+
     pub fn from_slice(slice: &[u8]) -> Self {
         Self { data: slice.to_vec() }
     }
-    
+
     pub fn as_slice(&self) -> &[u8] {
         &self.data
     }
-    
+
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         &mut self.data
     }
@@ -1472,13 +1459,13 @@ pub fn lock_memory(addr: *const u8, len: usize) -> Result<(), std::io::Error> {
 - [ ] Auto-wipe option
 - [ ] Secure memory allocation
 - [ ] Memory locking to prevent swap
-- [ ] Screenshot prevention (where possible)
 
 ---
 
-## Phase 8: Launch Preparation (Weeks 61-68)
+## Phase 8: Launch Preparation
 
 ### Objective
+
 Security audit, documentation, and launch.
 
 ### 8.1 Security Audit Preparation
@@ -1487,12 +1474,14 @@ Security audit, documentation, and launch.
 # Audit Scope
 
 ## In Scope
+
 - vault-crypto crate (all cryptographic operations)
 - vault-protocol crate (wire protocol, P2P)
 - vault-client core logic
 - Server blob handling
 
 ## Critical Focus Areas
+
 1. Key derivation correctness
 2. Nonce generation uniqueness
 3. Signature verification completeness
@@ -1500,6 +1489,7 @@ Security audit, documentation, and launch.
 5. Side-channel resistance
 
 ## Deliverables for Auditors
+
 - Complete source code
 - Threat model document
 - Architecture diagrams
@@ -1509,13 +1499,13 @@ Security audit, documentation, and launch.
 
 ### 8.2 Documentation
 
-| Document | Purpose |
-|----------|---------|
-| User Guide | End-user documentation |
+| Document            | Purpose                    |
+| ------------------- | -------------------------- |
+| User Guide          | End-user documentation     |
 | Security Whitepaper | Technical security details |
-| API Documentation | Developer reference |
-| Deployment Guide | Server operators |
-| Threat Model | Security researchers |
+| API Documentation   | Developer reference        |
+| Deployment Guide    | Server operators           |
+| Threat Model        | Security researchers       |
 
 ### 8.3 Launch Checklist
 
@@ -1541,19 +1531,19 @@ Security audit, documentation, and launch.
 
 ## Summary Timeline
 
-| Phase | Weeks | Duration | Focus |
-|-------|-------|----------|-------|
-| Phase 0 | 1-4 | 4 weeks | Foundation |
-| Phase 1 | 5-12 | 8 weeks | Cryptographic Core |
-| Phase 2 | 13-16 | 4 weeks | Identity System |
-| Phase 3 | 17-24 | 8 weeks | Server Infrastructure |
-| Phase 4 | 25-36 | 12 weeks | Client Applications |
-| Phase 5 | 37-44 | 8 weeks | Sharing Mechanisms |
-| Phase 6 | 45-52 | 8 weeks | P2P System |
-| Phase 7 | 53-60 | 8 weeks | Vault and Hardening |
-| Phase 8 | 61-68 | 8 weeks | Launch Preparation |
+| Phase   | Focus                 |
+| ------- | --------------------- |
+| Phase 0 | Foundation            |
+| Phase 1 | Cryptographic Core    |
+| Phase 2 | Identity System       |
+| Phase 3 | Server Infrastructure |
+| Phase 4 | Desktop Client        |
+| Phase 5 | Sharing Mechanisms    |
+| Phase 6 | P2P System            |
+| Phase 7 | Vault and Hardening   |
+| Phase 8 | Launch Preparation    |
 
-**Total: 68 weeks (~16 months)**
+> **Note:** Compared to v1.0, the overall effort has been significantly reduced. The removal of Android and iOS native clients eliminates Phase 4's mobile workstreams (Kotlin + JNI, Swift + FFI, platform-specific Keychain/Keystore integration, and mobile CI/CD pipelines). This effort savings also reduces security audit scope in Phase 8, since auditors no longer need to review two additional FFI boundaries and platform-specific secure storage implementations.
 
 ---
 
@@ -1623,18 +1613,20 @@ proptest = "1"
 ## Success Criteria
 
 ### Security
+
 - [ ] Zero critical vulnerabilities in audit
 - [ ] All invariants verified by testing
 - [ ] Fuzzing finds no crashes
 - [ ] Side-channel analysis passes
 
 ### Performance
+
 - [ ] Encryption: >100 MB/s on desktop
 - [ ] Decryption: >100 MB/s on desktop
-- [ ] Mobile: >50 MB/s
 - [ ] Server: >1000 requests/second
 
 ### Usability
+
 - [ ] <3 clicks to share a file
 - [ ] <5 seconds to decrypt typical file
 - [ ] Recovery phrase backup flow intuitive
