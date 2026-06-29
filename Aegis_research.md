@@ -1,15 +1,15 @@
-# Cryptographic Foundations for Zero-Trust Secure File Sharing
+# Cryptographic Foundations for the Aegis Protocol
 
 **Author:** Abdulaziz  
-**Project:** Secure File Sharing Protocol (Codename: Aegis)  
-**Date:** July 26, 2026
-**Revision:** v1.1 — Scope refined to desktop and web clients only (see §10.3)
+**Project:** Aegis — Zero-Trust Secure File Sharing Protocol  
+**Date:** June 29, 2026
+**Revision:** v2.1 — Reframed as protocol-first research (application-layer concerns moved to reference implementation notes)
 
 ---
 
 ## Abstract
 
-This research document provides an exhaustive examination of the cryptographic primitives, security architectures, and engineering technologies that form the foundation of a next-generation secure file sharing system. We analyze modern symmetric encryption (XChaCha20-Poly1305), elliptic curve cryptography (Curve25519 for key exchange, Ed25519 for signatures), hash functions (BLAKE3), key derivation (HKDF), and advanced protocol design (Noise Protocol Framework). We further examine the Zero Trust security model, end-to-end encryption principles, and the technical considerations for implementing these concepts in Rust with the Tauri framework. This comprehensive technical foundation establishes the theoretical and practical basis for building a file sharing system that provides immunity against server-side breaches, insider attacks, and mass surveillance while maintaining practical usability.
+This research document provides an exhaustive examination of the cryptographic primitives, security architectures, and protocol design patterns that form the foundation of the Aegis protocol — a zero-trust secure file sharing protocol. We analyze modern symmetric encryption (XChaCha20-Poly1305), elliptic curve cryptography (Curve25519 for key exchange, Ed25519 for signatures), hash functions (BLAKE3), key derivation (HKDF), and advanced protocol design (Noise Protocol Framework). We further examine the Zero Trust security model and end-to-end encryption principles as they apply to protocol design. This comprehensive technical foundation establishes the theoretical and practical basis for a file sharing protocol that provides immunity against server-side breaches, insider attacks, and mass surveillance. The protocol is implementation-agnostic; a reference implementation in Rust accompanies it separately.
 
 ---
 
@@ -43,11 +43,11 @@ Modern file sharing faces a fundamental contradiction: users need to share files
 - **Government surveillance**: Service providers can be compelled to hand over user data
 - **Metadata exposure**: Even without content access, communication patterns reveal sensitive information
 
-### 1.2 The Zero-Trust File Sharing Vision
+### 1.2 The Zero-Trust Protocol Vision
 
-This research supports the development of a file sharing system designed around a revolutionary principle: **the server knows nothing**. In this model:
+This research establishes the cryptographic foundations for a file sharing protocol designed around a core principle: **the server knows nothing**. The Aegis protocol defines:
 
-- Files are encrypted before they leave the user's device
+- Files are encrypted before they leave the client
 - The server never possesses decryption keys
 - Metadata is encrypted or meaningless
 - User identity is based on cryptographic keys, not personal information
@@ -55,15 +55,14 @@ This research supports the development of a file sharing system designed around 
 
 ### 1.3 Scope of This Research
 
-This document provides deep technical analysis of:
+This document provides deep technical analysis of the primitives and design patterns that underpin the Aegis protocol:
 
 1. **Symmetric Encryption**: How XChaCha20-Poly1305 provides authenticated encryption
 2. **Asymmetric Cryptography**: How Curve25519 and Ed25519 enable key exchange and signatures
 3. **Hashing**: How BLAKE3 provides fast, secure integrity verification
 4. **Key Management**: How HKDF enables secure key derivation
 5. **Protocol Design**: How the Noise Protocol enables secure handshakes
-6. **Architecture**: How Zero Trust principles inform system design
-7. **Implementation**: How Rust and Tauri provide secure foundations
+6. **Architecture**: How Zero Trust principles inform protocol design
 
 ---
 
@@ -212,7 +211,7 @@ The Associated Data (AD) allows authenticating header information that should no
 
 ### 2.7 Why XChaCha20-Poly1305 for Secure File Sharing
 
-For a zero-trust file sharing system, XChaCha20-Poly1305 is ideal because:
+For a zero-trust file sharing protocol, XChaCha20-Poly1305 is ideal because:
 
 1. **Per-file ephemeral keys**: Each file can use a unique key without nonce tracking
 2. **Random nonces**: 192-bit nonces can be randomly generated without collision risk
@@ -354,7 +353,7 @@ This eliminates the need for a random number generator during signing. Poor RNG 
 
 ### 3.4 Application in File Sharing
 
-In our secure file sharing system, these curves serve distinct purposes:
+In a conforming implementation, these curves serve distinct purposes:
 
 **Curve25519 (X25519) for Key Exchange:**
 
@@ -521,7 +520,7 @@ OKM = T(1) || T(2) || ... (truncated to L bytes)
 
 ### 5.4 Application in File Sharing
 
-HKDF is used throughout the secure file sharing system:
+HKDF is used throughout a conforming implementation:
 
 1. **From DH secret to file key**:
 
@@ -708,7 +707,7 @@ Design systems assuming attackers are already inside:
 
 ### 8.3 Application to File Sharing
 
-In our system, Zero Trust means:
+In the Aegis protocol, Zero Trust means:
 
 1. **Server doesn't trust server**: Even compromised, no useful data
 2. **Client doesn't trust client**: Recipients can't impersonate senders
@@ -799,11 +798,13 @@ This provides defense-in-depth: stealing one component is insufficient.
 
 ---
 
-## 10. Implementation Technologies
+## 10. Reference Implementation Technologies
+
+While the Aegis protocol is implementation-agnostic, the reference implementation is built using Rust. This section outlines the security considerations that informed this choice.
 
 ### 10.1 Rust Programming Language
 
-Rust is the ideal language for security-critical systems due to its fundamental design:
+Rust is the ideal language for the protocol's reference implementation due to its fundamental design:
 
 #### 10.1.1 Memory Safety Without Garbage Collection
 
@@ -818,21 +819,7 @@ Statistics show 70% of CVEs are memory safety issues. Rust eliminates this class
 
 #### 10.1.2 Ownership and Borrowing
 
-```rust
-fn main() {
-    let s = String::from("hello");  // s owns the string
-    let r = &s;                     // r borrows s (immutable)
-    println!("{}", r);              // OK
-    // let m = &mut s;              // ERROR: can't have mutable borrow while immutable exists
-}
-```
-
-The compiler enforces that at any time, you can have either:
-
-- One mutable reference, OR
-- Any number of immutable references
-
-This eliminates data races at compile time.
+The compiler enforces that at any time, you can have either one mutable reference, or any number of immutable references. This eliminates data races at compile time.
 
 #### 10.1.3 No Runtime Overhead
 
@@ -840,79 +827,7 @@ Unlike garbage-collected languages, Rust achieves memory safety at compile time:
 
 - No GC pauses
 - Predictable performance
-- Suitable for real-time systems
-
-### 10.2 Tauri Framework
-
-Tauri is a framework for building desktop applications with web technologies (HTML, CSS, JavaScript) and a Rust backend.
-
-#### 10.2.1 Security Advantages Over Electron
-
-| Feature          | Electron                    | Tauri              |
-| ---------------- | --------------------------- | ------------------ |
-| Runtime          | Bundled Chromium            | System WebView     |
-| Binary size      | 150+ MB                     | 3-10 MB            |
-| Memory usage     | High                        | Low                |
-| Security updates | Manual                      | OS handles WebView |
-| Native access    | Node.js (many APIs exposed) | Explicit Rust APIs |
-
-#### 10.2.2 Trust Boundaries
-
-Tauri enforces strict separation:
-
-```
-┌─────────────────────────────────────────────────┐
-│            Frontend (WebView)                    │
-│  - Untrusted                                     │
-│  - Sandboxed                                     │
-│  - No filesystem access by default               │
-├─────────────────────────────────────────────────┤
-│               IPC Layer                          │
-│  - All requests validated                        │
-│  - Explicit command whitelist                    │
-├─────────────────────────────────────────────────┤
-│            Backend (Rust)                        │
-│  - Trusted                                       │
-│  - Memory-safe                                   │
-│  - Explicit capability grants                    │
-└─────────────────────────────────────────────────┘
-```
-
-#### 10.2.3 Permission System
-
-Tauri uses a capability-based permission model:
-
-```json
-{
-  "permissions": ["fs:read-files", "shell:execute", "http:request"]
-}
-```
-
-Applications must explicitly request capabilities, enforcing least privilege.
-
-### 10.3 Scope Decision: Desktop and Web Only — No Native Mobile Clients
-
-This system deliberately excludes native mobile applications (Android/iOS) from its scope. This is a principled security and engineering decision, not a limitation:
-
-#### 10.3.1 Security Rationale
-
-| Concern                                      | Explanation                                                                                                                                                                                                                                                                                                                                 |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Expanded attack surface**                  | Each native mobile platform (Android via JNI/FFI, iOS via Swift FFI) introduces an entirely new set of platform-specific bindings, OS interactions, and memory boundaries. Every FFI bridge is a potential source of use-after-free, double-free, or type confusion bugs — the exact class of vulnerabilities Rust was chosen to eliminate. |
-| **Platform-imposed key storage constraints** | Android Keystore and iOS Secure Enclave have opaque, vendor-controlled behaviors. Bugs and backdoors in hardware-backed keystores are documented (e.g., Samsung TrustZone CVEs, Qualcomm TEE escapes). Relying on them for root-of-trust moves security guarantees outside our auditable codebase.                                          |
-| **OS-level telemetry and data leakage**      | Mobile operating systems routinely snapshot app state for task switchers, back up app data to cloud services (iCloud, Google Backup), index file contents for search (Spotlight), and log IPC calls. Preventing these leaks requires per-OS workarounds that are fragile, version-dependent, and unverifiable.                              |
-| **App store gatekeeping as a threat vector** | Distribution through the Apple App Store and Google Play introduces a trusted third party into the delivery chain. Store-level code injection (e.g., XcodeGhost), forced metadata disclosure (privacy nutrition labels), and the ability of platform vendors to remotely revoke or modify apps all conflict with zero-trust principles.     |
-| **Reduced auditability**                     | A security audit of the Rust core + Tauri desktop app is a tractable, well-bounded problem. Adding two native mobile codebases (Kotlin + JNI, Swift + FFI) with platform-specific secure storage, biometric APIs, and push notification integrations roughly triples the audit surface without proportional user benefit.                   |
-
-#### 10.3.2 Engineering Rationale
-
-Maintaining native mobile apps would require dedicated platform expertise (Kotlin/Android, Swift/iOS), separate CI/CD pipelines, platform-specific testing matrices, and ongoing compliance with frequently changing app store policies. For a security-first project, this effort is better invested in hardening the core cryptographic layer and the desktop client.
-
-#### 10.3.3 What Users Get Instead
-
-Desktop users are the primary audience for a tool designed around secure file sharing with cryptographic identity management. The Tauri-based desktop application provides full access to all system features — encryption, decryption, split-key sharing, P2P transfers, and the secure local vault — across Windows, macOS, and Linux from a single auditable codebase. A future web client (with deliberately limited functionality due to browser sandbox constraints) may serve as a lightweight companion for receiving shared files, but it does not replace the desktop application as the primary trusted client.
-
----
+- Suitable for highly concurrent environments
 
 ## 11. Cryptographic Library Ecosystem
 
@@ -983,7 +898,7 @@ A pure-Rust AEAD implementation:
 
 ### 11.3 Selection Criteria
 
-For our system, library selection prioritizes:
+For any conforming implementation, library selection should prioritize:
 
 1. **Security audit**: Independently verified
 2. **Active maintenance**: Regular updates
@@ -993,7 +908,7 @@ For our system, library selection prioritizes:
 
 ---
 
-## 12. Comparative Analysis of Secure File Sharing Solutions
+## 12. Comparative Analysis of Secure File Sharing Protocols
 
 ### 12.1 Existing Solutions Overview
 
@@ -1005,7 +920,7 @@ For our system, library selection prioritizes:
 | Sync.com     | E2EE             | Zero-knowledge   | Account identity |
 | Dropbox      | Server-side only | Full access      | Account identity |
 
-### 12.2 Feature Comparison
+### 12.2 Protocol Architecture Comparison
 
 #### 12.2.1 Proton Drive
 
@@ -1050,9 +965,9 @@ For our system, library selection prioritizes:
 - Both parties must be online
 - No persistent storage
 
-### 12.3 Gap Analysis
+### 12.3 Protocol Gap Analysis
 
-No existing solution provides ALL of:
+No existing open protocol provides ALL of:
 
 | Feature                 | Available       | Missing in All              |
 | ----------------------- | --------------- | --------------------------- |
@@ -1065,11 +980,11 @@ No existing solution provides ALL of:
 | P2P option              | ✓ OnionShare    | Others                      |
 | Encrypted search        | ✗ None          | **All missing**             |
 
-### 12.4 Our System's Differentiation
+### 12.4 Aegis Protocol Differentiation
 
-The proposed system uniquely combines:
+The proposed protocol uniquely combines:
 
-1. **Zero-trust server**: Server knows nothing (like OnionShare)
+1. **Zero-trust server architecture**: Server knows nothing (like OnionShare)
 2. **Persistent storage**: Available offline (like Proton/Tresorit)
 3. **Anonymous identity**: Key-based identity (like OnionShare)
 4. **Split-key delivery**: Defense-in-depth (unique)
@@ -1080,45 +995,45 @@ The proposed system uniquely combines:
 
 ## 13. Conclusion
 
-### 13.1 Summary of Technologies
+### 13.1 Summary of Protocol Primitives
 
-This research has examined the complete cryptographic foundation for a zero-trust secure file sharing system:
+This research has examined the complete cryptographic foundation for a zero-trust file sharing protocol:
 
-| Component            | Technology          | Purpose                       |
-| -------------------- | ------------------- | ----------------------------- |
-| Symmetric encryption | XChaCha20-Poly1305  | File encryption               |
-| Key exchange         | X25519 (Curve25519) | Establishing shared secrets   |
-| Digital signatures   | Ed25519             | Authentication, integrity     |
-| Hashing              | BLAKE3              | Integrity, content addressing |
-| Key derivation       | HKDF                | Deriving multiple keys        |
-| Handshake protocol   | Noise Protocol      | P2P secure channels           |
-| Security model       | Zero Trust          | Architecture philosophy       |
-| Implementation       | Rust + Tauri        | Secure, performant code       |
+| Component                | Technology          | Purpose                       |
+| ------------------------ | ------------------- | ----------------------------- |
+| Symmetric encryption     | XChaCha20-Poly1305  | Payload encryption            |
+| Key exchange             | X25519 (Curve25519) | Establishing shared secrets   |
+| Digital signatures       | Ed25519             | Authentication, integrity     |
+| Hashing                  | BLAKE3              | Integrity, content addressing |
+| Key derivation           | HKDF                | Deriving multiple keys        |
+| Handshake protocol       | Noise Protocol      | P2P secure channels           |
+| Security model           | Zero Trust          | Protocol philosophy           |
+| Reference Implementation | Rust                | Memory-safe, auditable code   |
 
-### 13.2 Security Properties Achieved
+### 13.2 Protocol Security Properties Achieved
 
-By combining these technologies properly, the system achieves:
+By combining these primitives properly, the protocol achieves:
 
-1. **Confidentiality**: Only authorized parties can read files
-2. **Integrity**: Any modification is detected
-3. **Authenticity**: File origin is verified
-4. **Forward secrecy**: Past files protected even if keys compromise
+1. **Confidentiality**: Only authorized parties can read payloads
+2. **Integrity**: Any modification is cryptographically detected
+3. **Authenticity**: Payload origin is verified
+4. **Forward secrecy**: Past exchanges protected even if keys compromise
 5. **Zero server knowledge**: Server breach reveals nothing
 6. **Anonymity**: Identity based on keys, not personal info
 7. **Defense in depth**: Multiple layers must fail for breach
 
-### 13.3 Open Challenges
+### 13.3 Implementation Challenges
 
 Even with this foundation, challenges remain:
 
 - **Endpoint security**: Client devices can be compromised
-- **Key management UX**: Users must handle keys responsibly
+- **Key lifecycle management**: The protocol requires conforming implementations to specify mechanisms for key generation, storage, and rotation — the security of these operations is entirely client-side.
 - **Metadata traffic analysis**: Timing patterns may leak information
 - **Performance tradeoffs**: Strong security has computational cost
 
 ### 13.4 Path Forward
 
-This research establishes the theoretical and practical foundation for implementation. The subsequent project specification and implementation plan will detail how these technologies are combined into a complete system.
+This research establishes the theoretical and practical foundation for implementation. The subsequent project specification and implementation plan will detail how these technologies are combined into a complete protocol.
 
 ---
 
@@ -1149,8 +1064,6 @@ This research establishes the theoretical and practical foundation for implement
 12. Libsodium Documentation. (2023). *https://doc.libsodium.org*.
 
 13. Klabnik, S., & Nichols, C. (2023). "The Rust Programming Language." *https://doc.rust-lang.org/book/*.
-
-14. Tauri Documentation. (2023). "Security Features." *https://tauri.app/v1/guides/security*.
 
 ---
 

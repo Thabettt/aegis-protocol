@@ -1,18 +1,18 @@
 # Implementation Plan
 
-## Zero-Trust Secure File Sharing Protocol
+## Aegis Protocol & Reference Implementation
 
-**Project Codename:** Aegis  
-**Author:** Abdulaziz  
-**Version:** 1.1  
-**Date:** July 26, 2026
-**Revision:** v1.1 — Scope refined to desktop and web clients only (mobile platforms removed)  
+**Project:** Aegis
+**Author:** Abdulaziz
+**Version:** 2.1
+**Date:** June 29, 2026
+**Revision:** v2.1 -- Structural polish. Track separation clarified. No engineering changes.
 
 ---
 
 ## Overview
 
-This implementation plan provides a detailed roadmap for building the zero-trust secure file sharing system. It is organized into eight phases, each with specific deliverables, technologies, and acceptance criteria.
+This implementation plan provides a detailed roadmap for building the Aegis protocol library and its reference implementation. It is organized into two tracks: **Track A** covers the protocol library (cryptographic core, wire formats, identity, P2P protocol, specification review, and protocol verification), while **Track B** covers the reference application (server, desktop client, vault hardening, and release). Each track contains phases with specific deliverables and acceptance criteria.
 
 ### Guiding Principles
 
@@ -25,63 +25,45 @@ This implementation plan provides a detailed roadmap for building the zero-trust
 
 ---
 
-## Technology Stack Summary
+## Technology Stack
 
-### Core Technologies
+### Track A: Protocol Library Stack
 
-| Component             | Technology         | Version               |
-| --------------------- | ------------------ | --------------------- |
-| **Core Language**     | Rust               | Latest stable (1.75+) |
-| **Desktop Framework** | Tauri              | 2.0+                  |
-| **Server Runtime**    | Rust (Tokio async) | Latest stable         |
-| **Build System**      | Cargo, npm         | Latest                |
+| Component     | Technology | Version               |
+| ------------- | ---------- | --------------------- |
+| Core Language | Rust       | Latest stable (1.75+) |
+| Async Runtime | Tokio      | Latest stable         |
+| Build System  | Cargo      | Latest                |
 
-### Why No Native Mobile Clients
+#### Cryptographic Libraries
 
-Native mobile applications (Android via Kotlin + Rust JNI, iOS via Swift + Rust FFI) have been deliberately excluded from scope. This is a security-driven decision:
+| Purpose            | Crate                | Version |
+| ------------------ | -------------------- | ------- |
+| AEAD Encryption    | `chacha20poly1305`   | 0.10    |
+| Key Exchange       | `x25519-dalek`       | 2       |
+| Digital Signatures | `ed25519-dalek`      | 2       |
+| Hashing            | `blake3`             | 1.5     |
+| KDF                | `hkdf`               | 0.12    |
+| Secure Random      | `rand` + `getrandom` | 0.8     |
+| Noise Protocol     | `snow`               | 0.9     |
+| Secure Memory      | `zeroize`            | 1       |
 
-| Concern                                | Impact                                                                                                                                                                                                                                                                                                   |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **FFI bridge attack surface**          | Every JNI/FFI boundary is a potential source of use-after-free, double-free, or type confusion — the exact vulnerability class Rust is chosen to eliminate. Two additional FFI layers (Android JNI, iOS C-interop) roughly triple the number of unsafe boundary crossings that must be audited.          |
-| **Platform-controlled key storage**    | Android Keystore and iOS Secure Enclave are opaque, vendor-controlled subsystems. Documented vulnerabilities in hardware TEEs (Samsung TrustZone CVEs, Qualcomm TEE escapes) mean relying on them for root-of-trust moves security guarantees outside our auditable codebase.                            |
-| **OS-level data leakage**              | Mobile OSes routinely snapshot app state for task switchers, back up app data to cloud services (iCloud, Google Backup), index file contents for system search (Spotlight), and log IPC calls. Preventing these leaks requires per-OS workarounds that are fragile, version-dependent, and unverifiable. |
-| **App store as a trusted third party** | Distribution through Apple App Store and Google Play introduces gatekeepers who can inject code (cf. XcodeGhost), demand metadata disclosure, and remotely revoke or modify applications — all of which conflict with zero-trust principles.                                                             |
-| **Audit cost**                         | A security audit of the Rust core + Tauri desktop app is a tractable, well-bounded problem. Adding two native mobile codebases with platform-specific secure storage, biometric APIs, and push notification integrations roughly triples the audit surface without proportional security benefit.        |
-| **Engineering overhead**               | Maintaining native mobile apps requires dedicated platform expertise, separate CI/CD pipelines, platform-specific testing matrices, and ongoing compliance with frequently changing app store policies. This effort is better invested in hardening the cryptographic core.                              |
+### Track B: Reference Application Stack
 
-Desktop users are the primary audience for a tool built around secure file sharing with cryptographic identity management. The Tauri desktop app delivers full functionality across Windows, macOS, and Linux from a single auditable codebase. A deliberately limited web client may serve as a companion for receiving shared files.
+The following technologies are used only by the reference application and are not required for protocol library development.
 
-### Cryptographic Libraries
-
-| Purpose            | Library          | Crate                |
-| ------------------ | ---------------- | -------------------- |
-| AEAD Encryption    | chacha20poly1305 | `chacha20poly1305`   |
-| Key Exchange       | x25519-dalek     | `x25519-dalek`       |
-| Digital Signatures | ed25519-dalek    | `ed25519-dalek`      |
-| Hashing            | blake3           | `blake3`             |
-| KDF                | hkdf             | `hkdf`               |
-| Secure Random      | rand             | `rand` + `getrandom` |
-| Noise Protocol     | snow             | `snow`               |
-| Password Hashing   | argon2           | `argon2`             |
-
-### Server Technologies
-
-| Component      | Technology                             |
-| -------------- | -------------------------------------- |
-| HTTP Framework | Axum                                   |
-| Async Runtime  | Tokio                                  |
-| Object Storage | S3-compatible (MinIO dev, AWS S3 prod) |
-| Rate Limiting  | In-memory (tower-governor)             |
-| Deployment     | Docker, Kubernetes                     |
-
-### Client Technologies
-
-| Platform | Core                | UI               |
-| -------- | ------------------- | ---------------- |
-| Desktop  | Rust (Tauri)        | TypeScript/React |
-| Web      | Rust/WASM (limited) | TypeScript/React |
+| Component         | Technology                             |
+| ----------------- | -------------------------------------- |
+| Desktop Framework | Tauri 2.0+                             |
+| Server Framework  | Axum 0.7                               |
+| Object Storage    | S3-compatible (MinIO dev, AWS S3 prod) |
+| Rate Limiting     | tower-governor (in-memory)             |
+| Password Hashing  | Argon2 0.5                             |
+| Deployment        | Docker, Kubernetes                     |
 
 ---
+
+## Track A: Protocol & Reference Library
 
 ## Phase 0: Foundation
 
@@ -93,7 +75,7 @@ Establish project structure, development environment, and documentation framewor
 
 ```bash
 # Create monorepo structure
-vault/
+aegis/
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml
@@ -102,13 +84,12 @@ vault/
 │   ├── CODEOWNERS
 │   └── SECURITY.md
 ├── crates/
-│   ├── vault-crypto/           # Core cryptography
-│   ├── vault-protocol/         # Wire protocol
-│   ├── vault-client/           # Shared client logic
-│   └── vault-server/           # Server binary
-├── apps/
-│   ├── desktop/                # Tauri app
-│   └── web/                    # Web app (limited)
+│   ├── aegis-crypto/           # Core cryptography (Track A)
+│   └── aegis-protocol/         # Wire protocol, P2P (Track A)
+├── reference/
+│   ├── aegis-server/           # Reference server implementation (Track B)
+│   ├── aegis-client/           # Reference client logic (Track B)
+│   └── desktop/                # Tauri desktop app (Track B)
 ├── docs/
 │   ├── architecture/
 │   ├── threat-model/
@@ -124,14 +105,24 @@ vault/
 └── CHANGELOG.md
 ```
 
+> **Note:** `crates/` contains only protocol-level libraries. All application-level code -- including the reference server, client, and desktop app -- lives under `reference/`. A developer building only the protocol library never needs to touch `reference/`.
+
 ### 0.2 Development Environment
 
+**Track A Setup (Protocol Library):**
+
 ```bash
-# Required tools
+# Required for all protocol development
 rustup default stable
 rustup component add clippy rustfmt
 cargo install cargo-audit cargo-deny cargo-expand cargo-fuzz
+```
 
+**Track B Setup (Reference Application):**
+
+Only required if building the reference server, desktop client, or web app.
+
+```bash
 # Tauri requirements
 cargo install tauri-cli
 
@@ -219,7 +210,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
-      - run: cd crates/vault-crypto && cargo +nightly fuzz run fuzz_decrypt -- -max_total_time=60
+      - run: cd crates/aegis-crypto && cargo +nightly fuzz run fuzz_decrypt -- -max_total_time=60
 ```
 
 ### Phase 0 Deliverables
@@ -242,9 +233,9 @@ Implement the core cryptography module with comprehensive testing.
 ### 1.1 Crate Structure
 
 ```rust
-// crates/vault-crypto/Cargo.toml
+// crates/aegis-crypto/Cargo.toml
 [package]
-name = "vault-crypto"
+name = "aegis-crypto"
 version = "0.1.0"
 edition = "2021"
 
@@ -283,7 +274,7 @@ proptest = "1"
 ### 1.2 Core Types
 
 ```rust
-// crates/vault-crypto/src/types.rs
+// crates/aegis-crypto/src/types.rs
 
 use zeroize::Zeroize;
 
@@ -341,7 +332,7 @@ impl EphemeralKeypair {
 ### 1.3 AEAD Operations
 
 ```rust
-// crates/vault-crypto/src/aead.rs
+// crates/aegis-crypto/src/aead.rs
 
 use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
@@ -413,7 +404,7 @@ pub fn generate_nonce() -> [u8; NONCE_SIZE] {
 ### 1.4 Key Exchange
 
 ```rust
-// crates/vault-crypto/src/kex.rs
+// crates/aegis-crypto/src/kex.rs
 
 use x25519_dalek::{PublicKey, StaticSecret};
 use hkdf::Hkdf;
@@ -451,7 +442,7 @@ pub fn key_exchange_sender(
     let mut salt = [0u8; 32];
     getrandom::getrandom(&mut salt).expect("Failed to generate salt");
 
-    let context = [b"vault-file-encryption-v1", file_id].concat();
+    let context = [b"aegis-file-encryption-v1", file_id].concat();
     let file_key = derive_file_key(&ephemeral.secret, recipient_public, &salt, &context);
 
     (ephemeral, file_key, salt)
@@ -461,7 +452,7 @@ pub fn key_exchange_sender(
 ### 1.5 Digital Signatures
 
 ```rust
-// crates/vault-crypto/src/sign.rs
+// crates/aegis-crypto/src/sign.rs
 
 use ed25519_dalek::{Signature, Signer, Verifier, SigningKey, VerifyingKey};
 use crate::types::Identity;
@@ -494,7 +485,7 @@ pub fn verify(
 ### 1.6 File Encryption Package
 
 ```rust
-// crates/vault-crypto/src/file.rs
+// crates/aegis-crypto/src/file.rs
 
 use serde::{Serialize, Deserialize};
 use crate::{aead, kex, sign, types::*};
@@ -579,7 +570,7 @@ impl EncryptedPackage {
 
         // Derive key
         let sender_ephemeral = x25519_dalek::PublicKey::from(self.ephemeral_public);
-        let context = [b"vault-file-encryption-v1", file_id].concat();
+        let context = [b"aegis-file-encryption-v1", file_id].concat();
         let file_key = kex::derive_file_key(recipient_secret, &sender_ephemeral, &self.salt, &context);
 
         // Decrypt
@@ -591,7 +582,7 @@ impl EncryptedPackage {
 ### 1.7 Comprehensive Tests
 
 ```rust
-// crates/vault-crypto/src/tests.rs
+// crates/aegis-crypto/src/tests.rs
 
 #[cfg(test)]
 mod tests {
@@ -712,11 +703,11 @@ mod tests {
 ### 1.8 Fuzzing
 
 ```rust
-// crates/vault-crypto/fuzz/fuzz_targets/fuzz_decrypt.rs
+// crates/aegis-crypto/fuzz/fuzz_targets/fuzz_decrypt.rs
 
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use vault_crypto::*;
+use aegis_crypto::*;
 
 fuzz_target!(|data: &[u8]| {
     // Attempt to parse and decrypt arbitrary data
@@ -736,7 +727,7 @@ fuzz_target!(|data: &[u8]| {
 
 ### Phase 1 Deliverables
 
-- [ ] `vault-crypto` crate with all primitives
+- [ ] `aegis-crypto` crate with all primitives
 - [ ] XChaCha20-Poly1305 AEAD implementation
 - [ ] X25519 key exchange
 - [ ] Ed25519 signatures
@@ -758,10 +749,10 @@ Implement the cryptographic identity system without personal identifiable inform
 ### 2.1 Identity Storage
 
 ```rust
-// crates/vault-client/src/identity.rs
+// reference/aegis-client/src/identity.rs
 
 use argon2::{Argon2, password_hash::PasswordHasher};
-use vault_crypto::types::Identity;
+use aegis_crypto::types::Identity;
 
 /// Encrypted identity storage
 pub struct IdentityStore {
@@ -830,7 +821,7 @@ impl IdentityStore {
 ### 2.2 Recovery Phrase (BIP-39 Compatible)
 
 ```rust
-// crates/vault-client/src/recovery.rs
+// reference/aegis-client/src/recovery.rs
 
 use bip39::{Mnemonic, Language};
 
@@ -867,274 +858,16 @@ pub fn recover_from_phrase(phrase: &str) -> Result<Identity, RecoveryError> {
 
 ---
 
-## Phase 3: Server Infrastructure
+## Phase 3: Wire Protocol & Message Formats
 
 ### Objective
 
-Build the deliberately "dumb" server that stores only encrypted blobs.
+Formalize message formats and share link structures.
 
-### 3.1 Server Structure
-
-```rust
-// crates/vault-server/src/main.rs
-
-use axum::{
-    routing::{get, post, delete},
-    Router,
-};
-use tower_http::cors::CorsLayer;
-
-#[tokio::main]
-async fn main() {
-    // Configure server
-    let config = Config::from_env();
-
-    // Initialize storage
-    let storage = S3Storage::new(&config.s3_endpoint, &config.s3_bucket).await;
-
-    // Build router
-    let app = Router::new()
-        .route("/health", get(health_check))
-        .route("/upload", post(upload_blob))
-        .route("/download/:blob_id", get(download_blob))
-        .route("/delete/:blob_id", delete(delete_blob))
-        .layer(CorsLayer::permissive())
-        .with_state(AppState { storage });
-
-    // Run server
-    let listener = tokio::net::TcpListener::bind(&config.bind_addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-}
-```
-
-### 3.2 Blob Storage
+### 3.1 Share Link Wire Format
 
 ```rust
-// crates/vault-server/src/storage.rs
-
-use aws_sdk_s3::Client;
-use uuid::Uuid;
-
-pub struct S3Storage {
-    client: Client,
-    bucket: String,
-}
-
-impl S3Storage {
-    /// Store an encrypted blob
-    /// Returns randomly generated blob ID
-    pub async fn store(&self, data: &[u8], ttl_hours: u32) -> Result<String, StorageError> {
-        let blob_id = Uuid::new_v4().to_string();
-
-        // Calculate expiration
-        let expires = chrono::Utc::now() + chrono::Duration::hours(ttl_hours as i64);
-
-        self.client
-            .put_object()
-            .bucket(&self.bucket)
-            .key(&blob_id)
-            .body(data.to_vec().into())
-            .expires(expires.into())
-            .send()
-            .await?;
-
-        Ok(blob_id)
-    }
-
-    /// Retrieve a blob
-    pub async fn get(&self, blob_id: &str) -> Result<Vec<u8>, StorageError> {
-        let response = self.client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(blob_id)
-            .send()
-            .await?;
-
-        let data = response.body.collect().await?.into_bytes().to_vec();
-        Ok(data)
-    }
-
-    /// Delete a blob
-    pub async fn delete(&self, blob_id: &str) -> Result<(), StorageError> {
-        self.client
-            .delete_object()
-            .bucket(&self.bucket)
-            .key(blob_id)
-            .send()
-            .await?;
-
-        Ok(())
-    }
-}
-```
-
-### 3.3 Rate Limiting
-
-```rust
-// crates/vault-server/src/rate_limit.rs
-
-use tower_governor::{GovernorLayer, GovernorConfigBuilder};
-
-pub fn rate_limit_layer() -> GovernorLayer {
-    let config = GovernorConfigBuilder::default()
-        .per_second(10)
-        .burst_size(50)
-        .finish()
-        .unwrap();
-
-    GovernorLayer::new(config)
-}
-```
-
-### 3.4 Minimal Logging
-
-```rust
-// crates/vault-server/src/logging.rs
-
-/// Server logs ONLY operational data
-/// NO user identifiers, NO file content, NO metadata
-pub fn setup_logging() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .json()
-        .init();
-}
-
-/// What we log (operational)
-/// - Request type (upload/download)
-/// - Blob ID (opaque identifier)
-/// - Response time
-/// - Error types
-
-/// What we DO NOT log
-/// - IP addresses (privacy)
-/// - User tokens (security)
-/// - File sizes (metadata)
-/// - Timestamps with user precision
-```
-
-### Phase 3 Deliverables
-
-- [ ] Axum server with minimal endpoints
-- [ ] S3-compatible blob storage integration
-- [ ] Rate limiting
-- [ ] TTL-based blob expiration
-- [ ] Minimal operational logging
-- [ ] Docker container
-- [ ] Kubernetes deployment manifests
-
----
-
-## Phase 4: Desktop Client Application
-
-### Objective
-
-Build the Tauri desktop client with the crypto core.
-
-### 4.1 Desktop (Tauri)
-
-```bash
-# Initialize Tauri project
-cd apps/desktop
-pnpm create tauri-app
-```
-
-```rust
-// apps/desktop/src-tauri/src/main.rs
-
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-use tauri::Manager;
-use vault_client::VaultClient;
-
-fn main() {
-    tauri::Builder::default()
-        .setup(|app| {
-            // Initialize vault client
-            let client = VaultClient::new()?;
-            app.manage(client);
-            Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![
-            encrypt_file,
-            decrypt_file,
-            upload_file,
-            download_file,
-            generate_share_link,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
-
-#[tauri::command]
-async fn encrypt_file(
-    client: tauri::State<'_, VaultClient>,
-    path: String,
-    recipient_public_key: String,
-) -> Result<EncryptedPackage, String> {
-    client.encrypt_file(&path, &recipient_public_key)
-        .await
-        .map_err(|e| e.to_string())
-}
-```
-
-### 4.2 Frontend (React/TypeScript)
-
-```typescript
-// apps/desktop/src/lib/crypto.ts
-
-import { invoke } from "@tauri-apps/api/tauri";
-
-interface EncryptedPackage {
-  version: number;
-  ephemeralPublic: string; // base64
-  salt: string;
-  nonce: string;
-  ciphertext: string;
-  signature: string;
-}
-
-export async function encryptFile(
-  filePath: string,
-  recipientPublicKey: string,
-): Promise<EncryptedPackage> {
-  return await invoke("encrypt_file", {
-    path: filePath,
-    recipientPublicKey,
-  });
-}
-
-export async function decryptFile(
-  package: EncryptedPackage,
-  outputPath: string,
-): Promise<void> {
-  return await invoke("decrypt_file", {
-    package,
-    outputPath,
-  });
-}
-```
-
-### Phase 4 Deliverables
-
-- [ ] Tauri desktop app structure
-- [ ] React frontend with TypeScript
-- [ ] Cross-platform file picker
-- [ ] Secure storage integration (OS Keychain / Credential Manager)
-
----
-
-## Phase 5: Sharing Mechanisms
-
-### Objective
-
-Implement split-key sharing and link generation.
-
-### 5.1 Share Link Protocol
-
-```rust
-// crates/vault-protocol/src/share.rs
+// crates/aegis-protocol/src/share.rs
 
 /// Share link contains ONLY the blob location
 /// Key is delivered separately
@@ -1153,11 +886,11 @@ pub struct ShareLink {
 impl ShareLink {
     pub fn to_url(&self) -> String {
         let encoded = base64url::encode(&serde_json::to_vec(self).unwrap());
-        format!("vault://share/{}", encoded)
+        format!("aegis://share/{}", encoded)
     }
 
     pub fn from_url(url: &str) -> Result<Self, ParseError> {
-        let encoded = url.strip_prefix("vault://share/")?;
+        let encoded = url.strip_prefix("aegis://share/")?;
         let bytes = base64url::decode(encoded)?;
         serde_json::from_slice(&bytes).map_err(Into::into)
     }
@@ -1177,80 +910,23 @@ pub struct ShareKey {
 impl ShareKey {
     pub fn to_string(&self) -> String {
         let bytes = serde_json::to_vec(self).unwrap();
-        format!("vault:key:{}", base64url::encode(&bytes))
+        format!("aegis:key:{}", base64url::encode(&bytes))
     }
 }
 ```
 
-### 5.2 Key Delivery Options
-
-```typescript
-// apps/desktop/src/components/ShareDialog.tsx
-
-import QRCode from 'qrcode.react';
-
-interface ShareDialogProps {
-  shareLink: string;
-  shareKey: string;
-}
-
-export function ShareDialog({ shareLink, shareKey }: ShareDialogProps) {
-  const [deliveryMethod, setDeliveryMethod] = useState<'qr' | 'copy'>('qr');
-
-  return (
-    <div className="share-dialog">
-      <h2>Share File</h2>
-
-      <section className="share-link">
-        <h3>Step 1: Send Link</h3>
-        <p>Share this link via any channel:</p>
-        <CopyableText value={shareLink} />
-      </section>
-
-      <section className="share-key">
-        <h3>Step 2: Deliver Key Separately</h3>
-        <p className="warning">
-          ⚠️ Do NOT send the key through the same channel as the link
-        </p>
-
-        <Tabs value={deliveryMethod} onChange={setDeliveryMethod}>
-          <Tab value="qr">QR Code</Tab>
-          <Tab value="copy">Copy</Tab>
-        </Tabs>
-
-        {deliveryMethod === 'qr' && (
-          <QRCode value={shareKey} size={256} />
-        )}
-
-        {deliveryMethod === 'copy' && (
-          <CopyableText value={shareKey} />
-        )}
-      </section>
-    </div>
-  );
-}
-```
-
-### Phase 5 Deliverables
-
-- [ ] Share link generation
-- [ ] Split-key architecture
-- [ ] QR code key delivery
-- [ ] Link expiration
-- [ ] Download tracking
-
 ---
 
-## Phase 6: P2P System
+## Phase 4: P2P Protocol
 
 ### Objective
 
 Implement optional peer-to-peer transfers using Noise Protocol.
 
-### 6.1 Noise Protocol Integration
+### 4.1 Noise Protocol Integration
 
 ```rust
-// crates/vault-protocol/src/p2p.rs
+// crates/aegis-protocol/src/p2p.rs
 
 use snow::{Builder, HandshakeState, TransportState};
 
@@ -1314,7 +990,7 @@ impl P2PSession {
 }
 ```
 
-### Phase 6 Deliverables
+### Phase 4 Deliverables
 
 - [ ] Noise Protocol XX pattern implementation
 - [ ] NAT traversal assistance
@@ -1324,160 +1000,50 @@ impl P2PSession {
 
 ---
 
-## Phase 7: Vault and Hardening
+## Phase 5: Protocol Specification Review and Lock
 
 ### Objective
 
-Implement secure local vault and system hardening.
+Validate the existing protocol specification (`Aegis_project_specification.md`) against the implemented crates, resolve any discrepancies between the specification and the code, and formally freeze the wire format before audit.
 
-### 7.1 Secure Vault
+### 5.1 Specification-to-Implementation Audit
 
-```rust
-// crates/vault-client/src/vault.rs
+Systematically compare every section of the protocol specification against the corresponding implementation in `aegis-crypto` and `aegis-protocol`. Document any case where the implementation diverges from the spec -- whether in field ordering, key derivation context strings, error handling behavior, or state machine transitions. Each discrepancy must be resolved by updating either the spec or the code, with a written justification for the choice.
 
-use std::io::{Read, Write};
-use std::path::PathBuf;
+### 5.2 Wire Format Freeze
 
-/// Secure local storage for decrypted files
-pub struct SecureVault {
-    /// Path to vault directory
-    path: PathBuf,
-    /// Vault encryption key (derived from passphrase)
-    key: VaultKey,
-    /// Auto-lock timeout
-    lock_timeout: Duration,
-    /// Last activity timestamp
-    last_activity: Instant,
-}
+Once the specification and implementation are aligned, formally freeze the wire format. After this point, any change to the EncryptedPackage binary layout, ShareLink JSON schema, ShareKey JSON schema, or error code taxonomy requires a major version increment and a full re-audit.
 
-impl SecureVault {
-    /// Store a file in the vault (encrypted at rest)
-    pub fn store(&self, name: &str, data: &[u8]) -> Result<(), VaultError> {
-        let nonce = aead::generate_nonce();
-        let ciphertext = aead::encrypt(&self.key.file_key(), &nonce, data, name.as_bytes())?;
+### 5.3 Test Vector Generation
 
-        let path = self.path.join(blake3::hash(name.as_bytes()).to_hex());
-        let mut file = std::fs::File::create(path)?;
-        file.write_all(&nonce)?;
-        file.write_all(&ciphertext)?;
+Generate a canonical set of test vectors from the reference implementation: known inputs, keys, salts, nonces, and expected outputs for every cryptographic operation. Publish these vectors alongside the specification so that third-party implementations can verify conformance without access to the reference code.
 
-        Ok(())
-    }
+### Phase 5 Deliverables
 
-    /// Retrieve a file from the vault
-    pub fn retrieve(&self, name: &str) -> Result<Vec<u8>, VaultError> {
-        let path = self.path.join(blake3::hash(name.as_bytes()).to_hex());
-        let mut file = std::fs::File::open(path)?;
-
-        let mut nonce = [0u8; 24];
-        file.read_exact(&mut nonce)?;
-
-        let mut ciphertext = Vec::new();
-        file.read_to_end(&mut ciphertext)?;
-
-        aead::decrypt(&self.key.file_key(), &nonce, &ciphertext, name.as_bytes())
-    }
-
-    /// Auto-wipe after inactivity
-    pub fn check_timeout(&mut self) -> bool {
-        if self.last_activity.elapsed() > self.lock_timeout {
-            self.lock();
-            return true;
-        }
-        false
-    }
-
-    /// Securely wipe vault contents
-    pub fn wipe(&self) -> Result<(), VaultError> {
-        for entry in std::fs::read_dir(&self.path)? {
-            let path = entry?.path();
-            // Overwrite with random data before deletion
-            if path.is_file() {
-                let len = std::fs::metadata(&path)?.len() as usize;
-                let random = (0..len).map(|_| rand::random::<u8>()).collect::<Vec<_>>();
-                std::fs::write(&path, random)?;
-                std::fs::remove_file(path)?;
-            }
-        }
-        Ok(())
-    }
-}
-```
-
-### 7.2 Memory Hygiene
-
-```rust
-// crates/vault-crypto/src/secure_mem.rs
-
-use zeroize::Zeroize;
-
-/// Secure buffer that zeros on drop
-pub struct SecureBuffer {
-    data: Vec<u8>,
-}
-
-impl SecureBuffer {
-    pub fn new(size: usize) -> Self {
-        Self { data: vec![0u8; size] }
-    }
-
-    pub fn from_slice(slice: &[u8]) -> Self {
-        Self { data: slice.to_vec() }
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        &self.data
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.data
-    }
-}
-
-impl Drop for SecureBuffer {
-    fn drop(&mut self) {
-        self.data.zeroize();
-    }
-}
-
-// Lock memory pages to prevent swapping to disk
-#[cfg(unix)]
-pub fn lock_memory(addr: *const u8, len: usize) -> Result<(), std::io::Error> {
-    unsafe {
-        if libc::mlock(addr as *const libc::c_void, len) != 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-    }
-    Ok(())
-}
-```
-
-### Phase 7 Deliverables
-
-- [ ] Encrypted local vault
-- [ ] Auto-lock after inactivity
-- [ ] Auto-wipe option
-- [ ] Secure memory allocation
-- [ ] Memory locking to prevent swap
+- [ ] Specification-to-implementation discrepancy report (all items resolved)
+- [ ] Wire format formally frozen (version 1.0)
+- [ ] Canonical test vectors published
+- [ ] Specification updated to match final implementation where necessary
+- [ ] Version negotiation mechanism validated against spec §7.3
 
 ---
 
-## Phase 8: Launch Preparation
+## Phase 6: Protocol Verification & Audit
 
 ### Objective
 
-Security audit, documentation, and launch.
+Verify all protocol invariants and prepare for security audit.
 
-### 8.1 Security Audit Preparation
+### 6.1 Security Audit Preparation
 
 ```markdown
 # Audit Scope
 
 ## In Scope
 
-- vault-crypto crate (all cryptographic operations)
-- vault-protocol crate (wire protocol, P2P)
-- vault-client core logic
+- aegis-crypto crate (all cryptographic operations)
+- aegis-protocol crate (wire protocol, P2P)
+- aegis-client core logic
 - Server blob handling
 
 ## Critical Focus Areas
@@ -1497,59 +1063,114 @@ Security audit, documentation, and launch.
 - Fuzzing coverage
 ```
 
-### 8.2 Documentation
-
-| Document            | Purpose                    |
-| ------------------- | -------------------------- |
-| User Guide          | End-user documentation     |
-| Security Whitepaper | Technical security details |
-| API Documentation   | Developer reference        |
-| Deployment Guide    | Server operators           |
-| Threat Model        | Security researchers       |
-
-### 8.3 Launch Checklist
-
-- [ ] Security audit complete
-- [ ] All critical issues resolved
-- [ ] Documentation complete
-- [ ] Beta testing complete
-- [ ] Performance benchmarks acceptable
-- [ ] Legal review complete
-- [ ] Privacy policy published
-- [ ] Incident response plan ready
-
-### Phase 8 Deliverables
+### Phase 6 Deliverables
 
 - [ ] Security audit report
-- [ ] All documentation
-- [ ] Beta test results
-- [ ] Performance benchmarks
-- [ ] Launch announcement
-- [ ] Bug bounty program setup
+- [ ] Test suite results
+- [ ] Fuzzing coverage
 
 ---
 
-## Summary Timeline
+## Track B: Reference Application
 
-| Phase   | Focus                 |
-| ------- | --------------------- |
-| Phase 0 | Foundation            |
-| Phase 1 | Cryptographic Core    |
-| Phase 2 | Identity System       |
-| Phase 3 | Server Infrastructure |
-| Phase 4 | Desktop Client        |
-| Phase 5 | Sharing Mechanisms    |
-| Phase 6 | P2P System            |
-| Phase 7 | Vault and Hardening   |
-| Phase 8 | Launch Preparation    |
+Track B covers all application-level code that consumes the protocol library. It lives entirely under the `reference/` directory and has no effect on the protocol crates in `crates/`. Track B development may proceed in parallel with Track A after Phase 1 is complete, but Track B may not ship before Track A Phase 6 (audit) is finished.
 
-> **Note:** Compared to v1.0, the overall effort has been significantly reduced. The removal of Android and iOS native clients eliminates Phase 4's mobile workstreams (Kotlin + JNI, Swift + FFI, platform-specific Keychain/Keystore integration, and mobile CI/CD pipelines). This effort savings also reduces security audit scope in Phase 8, since auditors no longer need to review two additional FFI boundaries and platform-specific secure storage implementations.
+### App Phase 1: Server Reference Implementation
+
+**Objective:** Build a minimal, conforming Aegis server that implements the blob storage interface defined in the protocol specification.
+
+**Key decisions:** The server is built on Axum with Tokio for async I/O. Blob storage uses an S3-compatible backend (MinIO for development, AWS S3 for production). Rate limiting is handled in-memory via `tower-governor`. The server stores only encrypted blobs with random IDs and TTL metadata -- it never inspects, indexes, or logs blob contents.
+
+**Deliverables:**
+
+- [ ] `POST /upload` endpoint accepting encrypted blobs
+- [ ] `GET /download/:id` endpoint serving blobs
+- [ ] `DELETE /:id` endpoint for blob removal
+- [ ] TTL enforcement with automatic expiry
+- [ ] Rate limiting per IP / per token
+- [ ] NAT traversal coordination for P2P handshakes
+- [ ] Docker image and Kubernetes deployment manifests
+- [ ] Integration tests against `aegis-protocol` crate
+
+### App Phase 2: Desktop Client
+
+**Objective:** Build a Tauri-based desktop client for Windows, macOS, and Linux that demonstrates all protocol operations via a native desktop interface.
+
+**Key decisions:** The client interfaces with the Rust backend through Tauri's IPC mechanism. All cryptographic operations are performed by the `aegis-crypto` and `aegis-protocol` crates via `aegis-client` -- the frontend handles only presentation. The IPC surface uses Tauri's explicit permission model; no broad IPC access is granted.
+
+**Deliverables:**
+
+- [ ] Tauri project structure under `reference/desktop/`
+- [ ] IPC commands wrapping `aegis-client` operations
+- [ ] File selection, encryption, and upload flow
+- [ ] Share link generation with split-key delivery
+- [ ] File download and decryption flow
+- [ ] Identity creation, backup, and recovery UI
+- [ ] P2P transfer initiation and acceptance
+- [ ] Builds for Windows, macOS, and Linux
+
+### App Phase 3: Secure Vault & Hardening
+
+**Objective:** Implement endpoint protection features that go beyond the protocol's scope to harden the reference client against local threats.
+
+**Key decisions:** The vault encrypts all local state at rest. Memory containing sensitive material (keys, plaintext) is zeroized immediately after use and allocated in non-swappable pages where the OS permits. The vault auto-locks after a configurable inactivity timeout. OS keychain integration (Windows Credential Store, macOS Keychain, Linux Secret Service) is used for passphrase-derived key caching.
+
+**Deliverables:**
+
+- [ ] Encrypted local vault for file and key storage
+- [ ] Memory hygiene: zeroization, mlock where available
+- [ ] Auto-lock on inactivity timeout
+- [ ] OS keychain integration for key caching
+- [ ] Hardening audit checklist completed
+
+### App Phase 4: Release Preparation
+
+**Objective:** Prepare the reference application for public release.
+
+**Key decisions:** End-user documentation is written for the desktop client, not the protocol library (which has its own specification). Beta testing focuses on the encryption/decryption roundtrip, split-key sharing flow, and P2P transfers. A bug bounty program is established covering both the protocol crates and the reference application.
+
+**Deliverables:**
+
+- [ ] End-user documentation (installation, usage, recovery)
+- [ ] Beta testing complete with issue resolution
+- [ ] Privacy policy published
+- [ ] Bug bounty program established
+- [ ] Release binaries signed and published
+
+---
+
+## Phase Overview
+
+### Track A: Protocol Library
+
+Phases are sequential. Each phase depends on the completion of the previous one.
+
+| Phase   | Focus                         | Depends On |
+| ------- | ----------------------------- | ---------- |
+| Phase 0 | Foundation                    | --         |
+| Phase 1 | Cryptographic Core            | Phase 0    |
+| Phase 2 | Identity System               | Phase 1    |
+| Phase 3 | Wire Protocol Format          | Phase 1    |
+| Phase 4 | P2P Protocol                  | Phase 3    |
+| Phase 5 | Protocol Specification Review | Phase 1-4  |
+| Phase 6 | Verification & Audit          | Phase 5    |
+
+### Track B: Reference Application
+
+Track B may begin after Track A Phase 1 is complete. Track B may not ship before Track A Phase 6 is finished.
+
+| Phase | Focus                 | Depends On      |
+| ----- | --------------------- | --------------- |
+| App 1 | Server Implementation | Track A Phase 1 |
+| App 2 | Desktop Client        | Track A Phase 3 |
+| App 3 | Vault & Hardening     | App 2           |
+| App 4 | Release Preparation   | App 3, Phase 6  |
 
 ---
 
 ## Technology Dependencies Summary
 
-### Rust Crates
+### Protocol Crates (Track A)
 
 ```toml
 # Cryptography
@@ -1558,8 +1179,7 @@ x25519-dalek = "2"
 ed25519-dalek = "2"
 blake3 = "1.5"
 hkdf = "0.12"
-argon2 = "0.5"
-snow = "0.9"  # Noise Protocol
+snow = "0.9"
 
 # Security
 zeroize = { version = "1", features = ["derive"] }
@@ -1571,7 +1191,18 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.21"
 
-# Async
+# Error handling
+thiserror = "1"
+
+# Testing
+criterion = "0.5"
+proptest = "1"
+```
+
+### Reference Application Crates (Track B)
+
+```toml
+# Async runtime
 tokio = { version = "1", features = ["full"] }
 
 # Server
@@ -1582,55 +1213,35 @@ tower-http = "0.5"
 # Storage
 aws-sdk-s3 = "1"
 
+# Password hashing
+argon2 = "0.5"
+
 # Error handling
-thiserror = "1"
 anyhow = "1"
-
-# Testing
-criterion = "0.5"
-proptest = "1"
 ```
 
-### Node.js Packages
-
-```json
-{
-  "dependencies": {
-    "@tauri-apps/api": "^2.0.0",
-    "react": "^18.2.0",
-    "typescript": "^5.3.0",
-    "qrcode.react": "^3.1.0"
-  },
-  "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
-    "vite": "^5.0.0"
-  }
-}
-```
+> **Note:** All frontend dependencies are managed separately in the reference desktop application and will be documented in `Aegis_reference_implementation_plan.md` (when written). They are not listed here as they are not required for protocol library development.
 
 ---
 
 ## Success Criteria
 
-### Security
+### Protocol Library (Track A)
 
-- [ ] Zero critical vulnerabilities in audit
-- [ ] All invariants verified by testing
-- [ ] Fuzzing finds no crashes
-- [ ] Side-channel analysis passes
+- [ ] Zero critical vulnerabilities in protocol audit
+- [ ] Protocol invariants mathematically and empirically verified
+- [ ] Fuzzing finds no crashes in cryptographic implementations
+- [ ] Cryptographic primitives resist side-channel analysis
+- [ ] Formal specification document reviewed and frozen
 
-### Performance
+### Reference Application (Track B)
 
-- [ ] Encryption: >100 MB/s on desktop
-- [ ] Decryption: >100 MB/s on desktop
-- [ ] Server: >1000 requests/second
-
-### Usability
-
-- [ ] <3 clicks to share a file
-- [ ] <5 seconds to decrypt typical file
-- [ ] Recovery phrase backup flow intuitive
-- [ ] Split-key sharing clear and guided
+- [ ] Desktop Encryption/Decryption: >100 MB/s
+- [ ] Server handling: >1000 requests/second
+- [ ] UX: <3 clicks to share a file
+- [ ] UX: Recovery phrase backup flow intuitive
+- [ ] UX: Split-key sharing clear and guided
+- [ ] Local Vault auto-locks and memory hygiene passes testing
 
 ---
 
