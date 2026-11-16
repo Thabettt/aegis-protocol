@@ -1,0 +1,1009 @@
+{
+ "status": "PROVISIONAL - not yet reproduced by an independent implementation",
+ "specification": "Aegis Protocol Specification v3.0 (draft)",
+ "generator": "model/aegis_v3_model.py",
+ "note": "Values marked injected stand in for X-Wing or Argon2id outputs, which this model does not implement. tv(name, n) is SHA-512('AEGIS test ' || name || u32(i)) in counter mode, truncated to n bytes.",
+ "selftest": {
+  "hkdf_rfc5869_a1": true,
+  "chacha20_block_rfc8439_2_3_2": true,
+  "poly1305_rfc8439_2_5_2": true,
+  "aead_rfc8439_2_8_2": true,
+  "ed25519_rfc8032_test1": true,
+  "ed25519_strict_rejections": true,
+  "x25519_rfc7748_6_1": true,
+  "padme_examples": true,
+  "base32_roundtrip": true
+ },
+ "padme": [
+  [
+   2,
+   2
+  ],
+  [
+   3,
+   3
+  ],
+  [
+   65536,
+   65536
+  ],
+  [
+   65537,
+   67584
+  ],
+  [
+   66000,
+   67584
+  ],
+  [
+   100000,
+   100352
+  ],
+  [
+   200090,
+   200704
+  ],
+  [
+   1000000,
+   1015808
+  ],
+  [
+   5000000,
+   5111808
+  ],
+  [
+   1073741824,
+   1073741824
+  ],
+  [
+   1073741825,
+   1107296256
+  ]
+ ],
+ "labelled_derivation": {
+  "ctx('blob id')": "41454749532d763307626c6f62206964",
+  "LExtract('', 'artifact', 00*33)": "958df5aea3655f7b04cb5f6bd41f4bcc4685d344dd2361e44f4775680623f4db100ca8fb5c6ead1d7149338e597c80cc450cfe388432f2c87f060660bd58a5df",
+  "LExpand(00*64, 'blob id', '', 32)": "1d00dc0236ee22c95607bdbe0dff70eb133d47d6274a09769d118bdbd077f369",
+  "LExpand(00*64, 'chain', '', 64)": "d967be6a52aa5b1cd0563e26387d5312a3739bdc69c3cab0f87ccb5987c7acaa950209e8d0af63714e8c06dc760738a1209a67ee3ce3dbbfd933f73e3f683e0d",
+  "LHash('transcript', '')": "9d37de5493cdaeec52d18a4d44061e161d07e095d059f6d4e24e228aa2818d0cc9c88bdc630a649dd28c8dc4a38f80752a5cb309d155ecdb75de1dc58ea9be82"
+ },
+ "vectors": [
+  {
+   "name": "sealed-split",
+   "inputs": {
+    "LS": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "KS": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "origin": "https://drop.example.org",
+    "live": false,
+    "name": "hello.txt",
+    "media_type": "text/plain",
+    "content": "48656c6c6f2c2041656769732e",
+    "content_rule": null,
+    "content_len": 13,
+    "content_sha512": "60ffa9e3b518223ca9e5ec9eea80befa40598a00ce32a5524a6df573cdbb1f92010e30cf8634c39d0c69d11b70242a0e9ff3759731dedc2ecb530e3caae82bc1",
+    "note": null,
+    "burn": false,
+    "signer_seed": null
+   },
+   "artifacts": {
+    "link": "aegis:link:amaqaaicamcakbqhbaequcymbuha6earcijrifiwc4mbsgq3dqor4hyynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxezy6tinlq",
+    "key": "aegis:key:amqccirdeqssmjzifevcwlbnfyxtamjsgm2dknrxha4tuoz4hu7d6sk7fera"
+   },
+   "stage_a": {
+    "PRK_A": "15869ae1040a2df856f99f9806bf966a62c5898db6c63a28ef746277ed42f5ced185b471ec798133276a40a80a23941bb3c76373e8a7aecdb0a0e92f76ae4776",
+    "blob_id": "abc5ff7d75f4b0ae59bde56a86229e56afaf30183d54fe1599a9810ed6e4925b",
+    "K_hdr": "11ea07400a7a66a842e709ee0d50fb3a9efaa75540d15e1393a76fba1c967a0d",
+    "T_burn": "bdbc8680254f30399cdb5adcdde977286779e543a76ff543e889b0f7ca79ae0c",
+    "live_id": "00463b40353d38a92391ad53779b7978aa80cd14ba081fb97fd907a86f9cdb11",
+    "live_psk": "7b5c816eff7436bf220cdc8e10e32a3fd2b5b24cf9ffd98da298f070843d164f",
+    "chain": "216d65c82a2072b1c14d1c3cb9fca37b8022c1964e1caf6daa7700aae562f415f857088cea52c5151fd09aa4e706081fad07f0414d9f96b4a03b256eb489cc90"
+   },
+   "mode": 1,
+   "header": {
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "hp_sha512": "a88d5e6fcfd998b0abe79b5b314f3f83f424be9447dca01e1a64a3e7313eb247baa894c10c5758c6788cad27582c09207d00d2e7bc41515e7f1751e05aa812ba",
+    "oh_sha512": "0f2f0f9f666dc8bc17db561561704e5973057713f8c94f7ab514da9c682cb0f038b0f234097b660913b18c296699e1748e7ecddb3214daa0b925b2d0e8c1ad09",
+    "oh_tag": "4d1dacbff3d52ff3aa4153032112fb65"
+   },
+   "rcpt": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "transcript": "b2c6c2bef2cce1e1f4b081a002dbc1a6c5ddb18ddb998cf58c321558352d0ea7764d9bda3ea1aa27cb1006ae73168b44f667f8599fdc2b718ed55c9372fcd466",
+   "stage_b": {
+    "PRK_B": "e623a22e06eb002586d899ff20cb4eb542b5365c3917c45ae7e78c2bec52f7afe0caa84a1719182bd3058602f330a811b7bbe6789a7069854abdf1392ad9773b",
+    "commit": "e4a3f9a018b6a95911e969c6eebbe2893af34462b9731c25de03566a4c24c5a5",
+    "K_payload": "e878a9221270a08fec671de2427447f21da5e092d7ba5dbe10de1b0d91e3f1e6"
+   },
+   "stream": {
+    "manifest": "0000003e000000000000000d0000000000000000000000000000000000000000000000000000000000000000000968656c6c6f2e7478740a746578742f706c61696e",
+    "n": 79,
+    "P_len": 65536,
+    "chunks": 1,
+    "signature": null
+   },
+   "blob": {
+    "length": 66752,
+    "sha512": "c0daa80977a560ce4973dfa37e79f869f6971f8c317c259113a297c064f4a5dfac8ba3cf2bc65d8e7a962c85d4d2390d6d7dd728a7ad6693a3fd2db0f26303e6",
+    "first_chunk_tag": "091e4d53d3f47bc6c33cff94fa340e8e"
+   },
+   "delete_verifier_of_T_burn": "7ca8518a69667c53afd27135c84b63d679fd5b5688997b0417c56cdb968189d0"
+  },
+  {
+   "name": "sealed",
+   "inputs": {
+    "LS": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "KS": null,
+    "origin": "https://drop.example.org",
+    "live": false,
+    "name": "hello.txt",
+    "media_type": "text/plain",
+    "content": "48656c6c6f2c2041656769732e",
+    "content_rule": null,
+    "content_len": 13,
+    "content_sha512": "60ffa9e3b518223ca9e5ec9eea80befa40598a00ce32a5524a6df573cdbb1f92010e30cf8634c39d0c69d11b70242a0e9ff3759731dedc2ecb530e3caae82bc1",
+    "note": null,
+    "burn": false,
+    "signer_seed": null
+   },
+   "artifacts": {
+    "link": "aegis:link:amaaaaicamcakbqhbaequcymbuha6earcijrifiwc4mbsgq3dqor4hyynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxez6yyotby",
+    "key": null
+   },
+   "stage_a": {
+    "PRK_A": "c6080586b735e8b95e25db06d4c15c646a447682804f469f6abf65d500632ad0b1521c4f21fca4ca8e12265643d3d047afd627c721d4d9e3d2b661ee3eaa42f1",
+    "blob_id": "bdd2eb15171d6d3396726f607206232c483f23a16fe4a62948202a7b03cb7e26",
+    "K_hdr": "1c39998ff6e3cc63628478b248793b0fc43eaad489896ae5ab614ab3b4353e1c",
+    "T_burn": "b33f30d594b2644e83ff4ab52ec92ee976f29f7b13b157df706db3908cccad20",
+    "live_id": "c5202808aeba2ea1b292a519b3600c930207dadc5df6cd3a7ab5bd4a3ba8ba8a",
+    "live_psk": "f76d42ba8fc83457d9a8d369e5a77712c37e7fbe45e9db7167a7eacb20b063db",
+    "chain": "7049f58b3190b3b8a8e359127c5a07eef5c7d962f433ef2b20fbeac72d8c9c3885b22ea7f2a0a7f3babb24403ce0c8e7da1962bbae9f3c6405e379b143f1a51c"
+   },
+   "mode": 0,
+   "header": {
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "hp_sha512": "a88d5e6fcfd998b0abe79b5b314f3f83f424be9447dca01e1a64a3e7313eb247baa894c10c5758c6788cad27582c09207d00d2e7bc41515e7f1751e05aa812ba",
+    "oh_sha512": "a8d43ef85f7edb5874be7bd79009f738e59d0deeeee912309c35735fab76e82e7eab85ce7478fb499824fbeec4ea7b5d6fe292bb10aa729fad4096041d811251",
+    "oh_tag": "61cfbca87d94a291c4da46fa2eb9e645"
+   },
+   "rcpt": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "transcript": "80e8af3692d378e8ecb54394126121dadb8d4b33daa5ef89404b98b0d884515153b402a60d4d05ee3986cb281be2ced445f58113e1d5e9aae9aaec687d77c404",
+   "stage_b": {
+    "PRK_B": "807eb4d7002b79f413b47a071264d6dc0b151e38e27aebb915bb640dc08194a9c710cbb9604c0f5136977dfefcd5ff55525b11f8f22728e7238358a5fe222291",
+    "commit": "1e75f47ce5519774fb9c7ccc5ca457bd021103fc5b95cdee977f8c81f1e15745",
+    "K_payload": "0a17ef092b6337bd738b114422c815732adb81bed5dd9e2a6d49324f19c58a60"
+   },
+   "stream": {
+    "manifest": "0000003e000000000000000d0000000000000000000000000000000000000000000000000000000000000000000968656c6c6f2e7478740a746578742f706c61696e",
+    "n": 79,
+    "P_len": 65536,
+    "chunks": 1,
+    "signature": null
+   },
+   "blob": {
+    "length": 66752,
+    "sha512": "a4740a850baded982cad6d6ea96cdd516e740710949ca78027306709d78afed4737db44180b44eaed2752651b99444538b0bbd72197ecd179912063b07d5b5df",
+    "first_chunk_tag": "18ae8a09fbf32e3898caec77658b15b0"
+   },
+   "delete_verifier_of_T_burn": "3dbe2217685e6c79ad6aa1c4b2d9e5779986f77ebb3f766d6abeed131679f28b"
+  },
+  {
+   "name": "sealed-split-signed",
+   "inputs": {
+    "LS": "15da39ad1ce8a3df5045e08e81bd2ff560d2cd3338a1905353e994d3de37dbd9",
+    "KS": "8ee8c8f00aa3b09b2b20ad31b0bcf15ebf2493ac78a1478c63e4e5bb0de18b75",
+    "origin": "https://drop.example.org",
+    "live": false,
+    "name": "signed.txt",
+    "media_type": "text/plain",
+    "content": "5369676e656420636f6e74656e742e",
+    "content_rule": null,
+    "content_len": 15,
+    "content_sha512": "9ce37580e57a3b8d55ae8870e13816cd4679b2480d2dedfabacea78f4a1108f471e0b4c8223587013803c2591e914caa14c378bff304861d087c78ff342888d4",
+    "note": "For your eyes only.",
+    "burn": true,
+    "signer_seed": "f186e2a6518fbca5f5f5db737e81b5588cc05dce1b17a5cb462c05226949f3e4"
+   },
+   "artifacts": {
+    "link": "aegis:link:amarlwrzvuoori67kbc6bdubxux7kygszuztrimqknj6tfgt3y35xwiynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxez7y4g666",
+    "key": "aegis:key:aohorshqbkr3bgzlecwtdmf46fpl6jetvr4kcr4mmpsoloyn4gfxlqkip6na"
+   },
+   "stage_a": {
+    "PRK_A": "c88a9f1edf3f2d4c0215652aa0fde490ac1b15c436784ede8f07c558f23f14f704a931345cf959e975df4cccf5dbd98d0d5f3e14de746d21b05f82db47903fe2",
+    "blob_id": "e39b41413b152049c453b89c1c685abc90ef973c5a0c578c056b8c2212f6912f",
+    "K_hdr": "4ca05866827acf406669442035ff64403323a6f96b3fb1c72945f2636b6b3c2b",
+    "T_burn": "496d3e995210907de12f4a7d7ab1743cde64dcc7b4b2fe19d42dcc2753abdef2",
+    "live_id": "51802ae1b13d3450a87949a15dfec58e44584f2bd9652bb774e7422186e5dafe",
+    "live_psk": "2080b3ab82daadbce39401d8da757daffcb7f794435969519c9b6f901ba026a6",
+    "chain": "2f9a7da7d4fca1a5d5767a2fb15e355306cb9c00a328e8ee2fceabed4ff3f1ea2cb1d43fc2cee3e74b478ce322b7ba7cd74c295a36f45e6e0623945d0ff9ad1c"
+   },
+   "mode": 1,
+   "header": {
+    "hp_first_32": "0400000000000000000000000000000000000000000000000000000000000000",
+    "hp_sha512": "f985eebe7b3516ebe1f7e1f8bd7cf33380eaf5d2be2ee5f127fe9d775d37cdbda5ee514ec1fee3ecc3744c70a2272d53b4d0ca0bc5d28794a72c772d874e09f2",
+    "oh_sha512": "3eb6c1e73879f915e67053743cef2d9d8a6b1813c50cb4cc9600ff2da49a086b70b852bd0826db3622477f00632013082d64365aa224765aa1ab1cf8ae89a84f",
+    "oh_tag": "1b4a302775a6a392123f831770589c00"
+   },
+   "rcpt": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "transcript": "db945dc76efa30b01b6b1f5f2431850bc2486fd53b9cdf1755034f9b4f9ac0339d3bc15a53c06b94171845fb659cf5c2f9b6efe82d50ef4ff008b153e766fe00",
+   "stage_b": {
+    "PRK_B": "2968c6d1558345617ffb1dc36077e7ec5f6d92db16cb8bcf93cf37ba7b0b364555ff38bc2abfc194eafb13cc1d1380aaa4e691c602c89ec5318715cdfb298bcf",
+    "commit": "cde469cbd61019e4f9d2c44896a934bc7b535acc117c1315ed704a5ec47c390d",
+    "K_payload": "5a7aa2d618c5e023ce91070c1ff636b6754c8e0fb0371058c5b2f80b3f6178aa"
+   },
+   "stream": {
+    "manifest": "0000005a000000000000000fd4493a463463ba6c70be6a55002beccd9d5d7a3de43803a24fe9bc132b8b2fcb000a7369676e65642e7478740a746578742f706c61696e00010013466f7220796f75722065796573206f6e6c792e00020000",
+    "n": 173,
+    "P_len": 65536,
+    "chunks": 1,
+    "signature": "5ba6710165a3ddec9b0e5be33ffa067e54d8d9e84d9e2517b061d3761dcc6885ad04d3bb82ac9af0895ed8b2b0d5e006bf9e11f85788ea353a28d45534dab50a"
+   },
+   "blob": {
+    "length": 66752,
+    "sha512": "afdbdf98bdf3f3e0b0f147c73dcca18ca1df170ec911f36f75b440dbba3a4b50565954320324263eddbb3404f3ccc8797f459204a97b75812706c359742a8f2c",
+    "first_chunk_tag": "17b56f51d78df49456ea85f1704c6701"
+   },
+   "delete_verifier_of_T_burn": "c5ba7157522013b8cc8c19b8f96015e42635169907b7b65073128bb43281d5e9"
+  },
+  {
+   "name": "addressed-split",
+   "inputs": {
+    "LS": "cac4621a6c629ca0d8313d21ee087f8798bf519af38efc8e97ef424477d06430",
+    "KS": "6b19e90127efde2b3760f023b6cd1bdd0219559ee5fea3df9aec0d84a943a417",
+    "origin": "https://drop.example.org",
+    "live": false,
+    "name": "addr.bin",
+    "media_type": "application/octet-stream",
+    "content": "41646472657373656420636f6e74656e742e",
+    "content_rule": null,
+    "content_len": 18,
+    "content_sha512": "86848c25833bff4cf9a6e011de6f82c9ac362cbf60cd9b6a25bd6049b047d46af154896813e1692d07c7516dbbdd1d19ad2186f5bb90d398486b63cfcd42bb3c",
+    "note": null,
+    "burn": false,
+    "signer_seed": null,
+    "addressed_injected": {
+     "ik_pub": "d10460303df317956e0a8509300737c7680754dbc57d35deb571ac7aa25fe6f9",
+     "kem_pub": "tv('kem_pub', 1216)",
+     "kem_ct": "tv('kem_ct', 1120)",
+     "ss_kem": "f3e299a4f7fb51380e5ed340d4a7b2830b62e5bee49c9fa3db0d2bf06c053e82"
+    }
+   },
+   "artifacts": {
+    "link": "aegis:link:ama4vrdcdjwgfhfa3ayt2ipobb7ypgf7kgnphdx4r2l66qseo7igimaynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxezzzaqusw",
+    "key": "aegis:key:anvrt2ibe7x54kzxmdychnwndpoqegkvt3s75i67tlwa3bfjiosbpjibxndq"
+   },
+   "stage_a": {
+    "PRK_A": "8b03865765dd1409639b6dfc2875e83076a3bb44d1259980c304ab603e7642182f9a60ba2f0d25d1317a0fdef0e7c3f71423a89d5983afd2784786b934f95242",
+    "blob_id": "90f2aa3403a37182f78a498da30cb5346d81f337d18d4aeb08c9421c27d31779",
+    "K_hdr": "5a697a1ff31f23722a09bfd202d61b13957ce486f67fa29580746366484a5fdd",
+    "T_burn": "d773a213bf7c2381ad4e4a5f61992f3377db60aec559c4f068fd445d182fff04",
+    "live_id": "d60e25282269c058a295946aa41edbd1ccd52713d19c403c59d89a1794bc3b55",
+    "live_psk": "2d80965742e3c04daa493699b94cf715783387297600fea468e301885de70b27",
+    "chain": "6bb8bbaef84fd3bc7e3f078a9760d228d3824dcb20a3ef37b5ff8ca9b0c83027fd38e1c9e506b9f346ef849032daf87521e4f9be706e6a59ac3552add0fd757f"
+   },
+   "mode": 1,
+   "header": {
+    "hp_first_32": "0100000000000000000000000000000000000000000000000000000000000000",
+    "hp_sha512": "85b441bb91fbac0f189290ee8e82338fa878be1806d99017a732609aaa576721543dd9b0c6af889c8e692c4b36e5adcebb3ccb371fe15b8b633ba7eb4c6f32bd",
+    "oh_sha512": "e7f60b0be94c3e816731fa42ad2cde69d0ea0fb6ac2a118af1003b1e2a62347e4f51fcf8511d0d325d2c6d8c85bc90e02153569c6e23b37cf97954c901d56ba6",
+    "oh_tag": "7fdc71d3280abaaaec340e6a6d0a31e9"
+   },
+   "rcpt": "da1a0f811e026f7a92dacda8c250316009988c2ccf08223fbad3b469012b0a115e1787afe6f5cbb384b13ff153d25968ba132267a059b37ba0ec52a8d33b8911",
+   "transcript": "6467abcd73efa54f6975488d1ea05003ee010af48d92a09023615c72d79e3396ee6602312e0019f3d9e655b8148e420e3c52eee2f8479dad96935bbc090e80ea",
+   "stage_b": {
+    "PRK_B": "d2dd3cbc14b261f1ad361d54ca7da197f23d3c4156e5ac21ba99fa212c6dd323f6d609b4dd7e62acafc5afe468f7ee6f5e4eb95d34c674c26625863f3c7dd0d5",
+    "commit": "3cfe2dcd03c3ca8fc8be5240ee8e84914497cc69966e6fd562f3b383e519def9",
+    "K_payload": "28622f013686b79acbf40e56b19c07531343abb6331de2b30979659cd1d6850f"
+   },
+   "stream": {
+    "manifest": "0000004b000000000000001200000000000000000000000000000000000000000000000000000000000000000008616464722e62696e186170706c69636174696f6e2f6f637465742d73747265616d",
+    "n": 97,
+    "P_len": 65536,
+    "chunks": 1,
+    "signature": null
+   },
+   "blob": {
+    "length": 66752,
+    "sha512": "32b56da791203c629970588a52cbda34454b77d482f30f49da6736ae9f53c084fe95f722fd2fe253f238bcb9765d2b40e6161909967562c3193876029f4aa0c6",
+    "first_chunk_tag": "445bbde0da1ca76d9d5bfcfea0a3a544"
+   },
+   "delete_verifier_of_T_burn": "168e860ec74aac484e6ce1c89b3af3129645efa6749255b0b66271ecca3abb61"
+  },
+  {
+   "name": "addressed-passphrase-signed",
+   "inputs": {
+    "LS": "871bf081c7e996f23608764109bcd86086244b05cded8a43aec661f71db5ec7b",
+    "KS": "86f71ebc82f654c5333e88343ca65128b5dc2520fbe43b5aa30c96e683c0bb97",
+    "origin": "http://aegisexampleonion.onion",
+    "live": true,
+    "name": "all.txt",
+    "media_type": "text/plain",
+    "content": "416c6c20666163746f72732e",
+    "content_rule": null,
+    "content_len": 12,
+    "content_sha512": "41cd36f05081086f87dd28fef8babbf9a5def93403526cf18f6c62876e99dfa0563b2fe303dd69ca8f8bff3bceca07f91e86743f92f10ce744c9f29cb5c9cfac",
+    "note": null,
+    "burn": false,
+    "signer_seed": "f186e2a6518fbca5f5f5db737e81b5588cc05dce1b17a5cb462c05226949f3e4",
+    "addressed_injected": {
+     "ik_pub": "d10460303df317956e0a8509300737c7680754dbc57d35deb571ac7aa25fe6f9",
+     "kem_pub": "tv('kem_pub', 1216)",
+     "kem_ct": "tv('kem_ct', 1120)",
+     "ss_kem": "f3e299a4f7fb51380e5ed340d4a7b2830b62e5bee49c9fa3db0d2bf06c053e82"
+    },
+    "passphrase_injected": {
+     "pw_profile": 1,
+     "pw_salt": "986a813e5ae8d3cb6966e0deef6a8b1e",
+     "pw_key": "b2198594333a91f70c580fdaea12beea6c0fb794318c78fef3a6c3d41077fb30"
+    }
+   },
+   "artifacts": {
+    "link": "aegis:link:ambyog7qqhd6tfxsgyehmqijxtmgbbrejmc433mkioxmmypxdw26y6y6nb2hi4b2f4xwczlhnfzwk6dbnvygyzlpnzuw63ron5xgs33o2qkubcq",
+    "key": "aegis:key:aodpohv4ql3fjrjth2edipfgkeullxbfed56io22umgjnzudyc5zothpaxva"
+   },
+   "stage_a": {
+    "PRK_A": "e89a28b2b021f315c70915af21b8c9da658ccda4bf4f0985f1fedf3e9b16f7d91721139d1c308489f1fcaf8c70d6cab454b2bfe08b3d3ca595483ecaf7bf92c0",
+    "blob_id": "14d1b6ae4be18c8ae063f36c69d3cab5bb9375e5ab1c07d8819d541cb340e16e",
+    "K_hdr": "c2b72a395f14d45d7173e83111f13f8d3a86c9a5c4f8f170e4f960c22bf5c672",
+    "T_burn": "7231d9c68ecbf39df8f0954c9823a50e15f4963fd0633012e021437ef89f6948",
+    "live_id": "3b382777d219256d418a174a20d786b915167bb596ac6a5da0723ffd1999a1f1",
+    "live_psk": "ae58fa9bb508128bcde9030f14fc69442768b7c7f42dca40307fc8da756365ea",
+    "chain": "66397a3012d7369a3dea405122641b03b395096024708895c15f8b11ccf875a2f261687a015dfa0db77f4b55d5312a87d37b5a9bdb30d8cfe86205c0108ffe3a"
+   },
+   "mode": 1,
+   "header": {
+    "hp_first_32": "07010000000000000000000000000000986a813e5ae8d3cb6966e0deef6a8b1e",
+    "hp_sha512": "7bb714cadecd7445b6647193eff5db26669b2b0b73bdcee7bab8a85fc700595fe4cddd50258d49329f26d22b6e479477f079dbc623a7c3e388136ea377751e2c",
+    "oh_sha512": "b5681d04a2bc292741e35c1233e9b5b985301ce2eabce5109abe36cea96c83f212abc9eaf6881f458f80ad0ad0b5fdd363bf7c9c5a70f41fc1192120750fe4ed",
+    "oh_tag": "e432254bebc76318d32d938f05742ddf"
+   },
+   "rcpt": "da1a0f811e026f7a92dacda8c250316009988c2ccf08223fbad3b469012b0a115e1787afe6f5cbb384b13ff153d25968ba132267a059b37ba0ec52a8d33b8911",
+   "transcript": "75caedb0131ff2fc8d6e2671f1f343925b7c9be03b5e5f714c32a9fdfcfd7f2c738d85020fa488648a39c85b0296dcb7bfc8430b4a5ebc3dc8c0d8f6e6feafcc",
+   "stage_b": {
+    "PRK_B": "0a6cc7bff8ca86655b6abb86b42282acfa82d41d17c0f7c5725854ed4a2ddab1b6e8ce2a2eeeb0dcbae5b016e99c3101c6c2ec1d69903b1b4e4f4596c2cb0f53",
+    "commit": "ca9d4490ccee88f600f1347dfe9eb2a2fe3304918992082915515f83909bf6d0",
+    "K_payload": "f609c639c59126e5669712c2067673ad36e2c9193fd09c19e1bd3dbab58c43c5"
+   },
+   "stream": {
+    "manifest": "0000003c000000000000000cd4493a463463ba6c70be6a55002beccd9d5d7a3de43803a24fe9bc132b8b2fcb0007616c6c2e7478740a746578742f706c61696e",
+    "n": 140,
+    "P_len": 65536,
+    "chunks": 1,
+    "signature": "ee13439fd58108aafcf4101d841da8bb24cb05965c6591340f9921346914ea23ba790aba57147689a39df1e78aacb818146b1e2485ccdb6ca28bf2e733a73f07"
+   },
+   "blob": {
+    "length": 66752,
+    "sha512": "64e382ba118af1f4aee3bdcf9c3096a6c68b815914d15170251c8b98197ead92b504e56de80a074fd99484c6448d26d96118e5ad4b75c0e6724e5c987fb3bdd0",
+    "first_chunk_tag": "be5b6c40cc2d28887df514830d38eada"
+   },
+   "delete_verifier_of_T_burn": "d406f247fef10484a12ea4c254b1d745220222c1bd4e755d872dfd4268f4b998"
+  },
+  {
+   "name": "multi-chunk",
+   "inputs": {
+    "LS": "b863b2f0c80320a5ddd3e3795977c7184472042cfbdcb1c6b4824c481118f0fb",
+    "KS": "ada9cb26fac3c6fb97d04648fca889881918db19b9770660edae199247cd5f61",
+    "origin": "https://drop.example.org",
+    "live": false,
+    "name": "pattern.bin",
+    "media_type": "application/octet-stream",
+    "content": null,
+    "content_rule": "byte i = (i*7 + 3) mod 251",
+    "content_len": 200000,
+    "content_sha512": "f81e46d4b6800e747aab40e85adb1b168f77f849a319b69036db39c905e9cdcc9d648bff44facb12d63e14ec9b85059ecbbc8e9607b17735981cf11772b0b3dd",
+    "note": null,
+    "burn": false,
+    "signer_seed": null
+   },
+   "artifacts": {
+    "link": "aegis:link:ama3qy5s6deagiff3xj6g6kzo7drqrdsaqwpxxfry22ietcicempb6yynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxezynpmmiu",
+    "key": "aegis:key:aow2tszg7lb4n64x2bder7firgebsgg3dg4xobta5wxbteshzvpwdbnbl4ka"
+   },
+   "stage_a": {
+    "PRK_A": "a7a72ef3b34a253576fb5cd1dd3d46511e6c73aa41166fd61ce5779f5ce1ba3451ba2a5de36b508568dfe1b06e234c589ab71708b415bcea8c6d6ff9e8222ccb",
+    "blob_id": "f58955c94d68ffca77ef7aa77745536c8b7b5e739baf2384a0648b043158623c",
+    "K_hdr": "8d4d94fa57ab84b5d6a40d124cf58d9a064c936b32703ef50001158846b65b8b",
+    "T_burn": "b6af6f61496d898d5efa3af35f33edf2fdba9b78d1954c1c7790bffa622c906c",
+    "live_id": "5c4dadb790193b1b18a9876f567cd24657484e65d58e786965d04637adcdfe09",
+    "live_psk": "3b7b1c7e713ef9159a545316096249848dd9595e788aa2f536cf680cb6633e12",
+    "chain": "48e86f56845f59cd46db12c9ad17238d5aa27f59563d3f49291065fd00d5b9e75887d472c3ed59aff3f737f5fb3061e274d50c752800871226874d6e6a8a8a98"
+   },
+   "mode": 1,
+   "header": {
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "hp_sha512": "a88d5e6fcfd998b0abe79b5b314f3f83f424be9447dca01e1a64a3e7313eb247baa894c10c5758c6788cad27582c09207d00d2e7bc41515e7f1751e05aa812ba",
+    "oh_sha512": "518e3f67f524242609b3da5a1c84690ed5c6a2f12e8ceab38af55d59a82fa1ddf0648630ac870135ffe79562af1cf0d426ed7c0580ae9bda8a19c71895018aac",
+    "oh_tag": "d4b118d5639777b7bef921c3edc7b350"
+   },
+   "rcpt": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "transcript": "4aea8ac000b2fab66b44b9e0f7c0582e55020670a4f53808813f922daf1f251106f2df38ecdcc5b64db67d7dfcce55aed114d1bb42b5bb52887da584ad434ddd",
+   "stage_b": {
+    "PRK_B": "64c415e6ce6b24a0e0f000c50b79c3c66996aaf601a327479649917ef3deba5fb0faee3866d925b38ba7c47233947df60ccd2441bcf2d7061fd45454581931ae",
+    "commit": "00383d5cc9f476b296b522235d4885e4c4412ea632e2048f74a531d89291927b",
+    "K_payload": "3025bf6f7c6da1fc2251eab03d736cf10eca12964bd121a0fbf538715059887f"
+   },
+   "stream": {
+    "manifest": "0000004e0000000000030d400000000000000000000000000000000000000000000000000000000000000000000b7061747465726e2e62696e186170706c69636174696f6e2f6f637465742d73747265616d",
+    "n": 200082,
+    "P_len": 200704,
+    "chunks": 4,
+    "signature": null
+   },
+   "blob": {
+    "length": 201968,
+    "sha512": "6f41bcad5297a4fd7b7e4a7d8090f85eb000b0ba4f8ac65914d33b4a53303ac21a9733c1ef5045c7ee9a375d5351bb63691c460556b660eb415261528c6594e2",
+    "first_chunk_tag": "9478b70906e36a33d3d539dbc92288e5"
+   },
+   "delete_verifier_of_T_burn": "9072af1862c9f5912d3d1383bee964bfc23b69367c3f822c89b0a0b2bb36f26a"
+  }
+ ],
+ "artifact_text_tolerance": {
+  "text": "aegis:key:AOHO RSHQ BKR3 BGZL ECWT DMF4 6FPL 6JET VR4K CR4M MPSO LOYN 4GFX LQKI P6NA",
+  "decodes_to_KS": "8ee8c8f00aa3b09b2b20ad31b0bcf15ebf2493ac78a1478c63e4e5bb0de18b75"
+ },
+ "negative": [
+  {
+   "name": "bit flip: sealed header, first byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "flip",
+    "offset": 0,
+    "bit": 0
+   },
+   "expect": "AEG-CRYPTO-01"
+  },
+  {
+   "name": "bit flip: sealed header, last tag byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "flip",
+    "offset": 1167,
+    "bit": 0
+   },
+   "expect": "AEG-CRYPTO-01"
+  },
+  {
+   "name": "bit flip: commitment, first byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "flip",
+    "offset": 1168,
+    "bit": 0
+   },
+   "expect": "AEG-CRYPTO-02"
+  },
+  {
+   "name": "bit flip: commitment, last byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "flip",
+    "offset": 1199,
+    "bit": 0
+   },
+   "expect": "AEG-CRYPTO-02"
+  },
+  {
+   "name": "bit flip: chunk 0, first byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "flip",
+    "offset": 1200,
+    "bit": 0
+   },
+   "expect": "AEG-CRYPTO-03"
+  },
+  {
+   "name": "bit flip: chunk 0, last tag byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "flip",
+    "offset": 66751,
+    "bit": 0
+   },
+   "expect": "AEG-CRYPTO-03"
+  },
+  {
+   "name": "truncate by 1 byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "truncate",
+    "bytes": 1
+   },
+   "expect": "AEG-CRYPTO-03"
+  },
+  {
+   "name": "append 1 byte",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "append",
+    "hex": "00"
+   },
+   "expect": "AEG-FMT-03"
+  },
+  {
+   "name": "blob shorter than header + 17",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "keep",
+    "bytes": 1216
+   },
+   "expect": "AEG-FMT-03"
+  },
+  {
+   "name": "wrong ShareKey",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "key",
+    "KS": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+   },
+   "expect": "AEG-CRYPTO-01"
+  },
+  {
+   "name": "ShareKey missing for SPLIT link",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "key",
+    "KS": null
+   },
+   "expect": "AEG-FMT-01"
+  },
+  {
+   "name": "link: checksum bit flipped",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "artifact",
+    "text": "aegis:link:amarlwrzvuoori67kbc6bdubxux7kygszuztrimqknj6tfgt3y35xwiynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxez7y4g664"
+   },
+   "expect": "AEG-FMT-01"
+  },
+  {
+   "name": "link: version 0x04",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "artifact",
+    "text": "aegis:link:aqarlwrzvuoori67kbc6bdubxux7kygszuztrimqknj6tfgt3y35xwiynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxez7y4g666"
+   },
+   "expect": "AEG-FMT-02"
+  },
+  {
+   "name": "link: reserved lflags bit set, checksum valid",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "artifact",
+    "text": "aegis:link:aoarlwrzvuoori67kbc6bdubxux7kygszuztrimqknj6tfgt3y35xwiynb2hi4dthixs6zdsn5yc4zlymfwxa3dffzxxezzjjpkko"
+   },
+   "expect": "AEG-FMT-01"
+  },
+  {
+   "name": "key: non-canonical base32 trailing bits",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "artifact",
+    "text": "aegis:key:aohorshqbkr3bgzlecwtdmf46fpl6jetvr4kcr4mmpsoloyn4gfxlqkip6nb"
+   },
+   "expect": "AEG-FMT-01"
+  },
+  {
+   "name": "key: padding character",
+   "base": "sealed-split-signed",
+   "mutation": {
+    "op": "artifact",
+    "text": "aegis:key:aohorshqbkr3bgzlecwtdmf46fpl6jetvr4kcr4mmpsoloyn4gfxlqkip6na="
+   },
+   "expect": "AEG-FMT-01"
+  },
+  {
+   "name": "non-zero padding byte",
+   "base": "crafted",
+   "mutation": {
+    "craft": "last pad byte = 0x01",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "68e40a4b12fb1e0c1e95ebc6939ec4ac61011620c89fdaaec8168be9823e982e65007721e3902abfa40ca6e52e4d204df7196a04028279d88ecd1046738ae534",
+    "blob_sha512": "615cf3c326b3a3528e6476cc4e3fa970bfeb55d5cfa8d41b28b30df4dda13b92f1401a2a08f5166d1bae9438276c20fd26356e96756ff53b20266d6c04708f38"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "padded length is not a Padme value",
+   "base": "crafted",
+   "mutation": {
+    "craft": "|P| = 65537",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65537,
+    "P_sha512": "836b5e2ece858de5f12b86a6d603e4d6776aa13fb587cdc762401ce0e460171fd981271f0795066bc23791bdbc43a8beb3d85b3ec0a6fe627ffb36cbf5271de6",
+    "blob_sha512": "462b606f79072ecc3b12c35581bb2b4d483b227369ebd76fd12605f830d41906f1f0be94e9eb5cd75a271544c5ab0c82ce5f2d9f71ed3ecc7d6ae73388ab5fc2"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "padded length below minimum",
+   "base": "crafted",
+   "mutation": {
+    "craft": "|P| = 4096",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 4096,
+    "P_sha512": "47128435340d4b029de9bc7c303b05b550f5d77b66a5467dd7bfe68e8eaa225768cb275634b0353832fdcc915bc643b7c688f171ed5efc2406aec989e416c8f5",
+    "blob_sha512": "56d458a849f43184544b0ee91e8f0b843626528bf838196e760a1dde78d33eb53a50d6765c8d5807b0e3aee66b3cf779d1451a67d8963070d7b2c1332473d061"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "content_len exceeds stream",
+   "base": "crafted",
+   "mutation": {
+    "craft": "content_len = 2^40",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "1294419e1c0fa0a898cb3750f04c6db5aaa304f3feab34e65f5dcc504645ddaa86bcd8405fdb4b3bd49bda2304f2339d7da8a68108b41f1fe84a1be4796eb3a7",
+    "blob_sha512": "95583be0d17eb670dd01f825df062c37402bf7fa6e9409ea0c3a8ec8ff510a5c9e311755b0ec6bc566dff38843aaed68c33550a952a501496072017b39e9be9f"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "extensions out of order",
+   "base": "crafted",
+   "mutation": {
+    "craft": "burn before note",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "677bd1a39222cedc57898d678e2624472c0e0cd6e8a9891deca23df4fe5334973d50d4d397fa7239c065cc786ec5d7d384d41f6cdd59380b1e8ccb919ac2eec0",
+    "blob_sha512": "f6369b2344b1b8a13c87399d89754e3b140e7d08c0e53e98aaf114d0353ee86a22b82d4426cc79f44cda389e176f334ac4b51fe2dbb0acd7e324bcf05134c61a"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "extension repeated",
+   "base": "crafted",
+   "mutation": {
+    "craft": "note twice",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "7a56d6e1ee614b9b47f372ffbae8c3dbeff54e534c48c56748bfb787a9b050a872e2d6598b8771ac0688880c6057dba4f6b1f9b1ef0e02b23e826f7dbbae3cb9",
+    "blob_sha512": "1ce4f429b5db26043295bfdd8006b9acef4aa7c686c329f21fe4c646705855b15865dc7a8eb3933aca48a4f877534e1b0242814f56a70265719f8e158ac4a6bc"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "unknown critical extension",
+   "base": "crafted",
+   "mutation": {
+    "craft": "type 0x8001",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "131eb176f845c1f7b2f0c0f6d88e3a8ab68a3d74b806966eddc2f2ee6b1f498e54504d603c37b8bcda16985d8e0dda192c5ab42afd837389be82196a07254ad4",
+    "blob_sha512": "3c648413ad01ac24b0f0e8cf5838fb749e6c0807fc8c97b525729b1e098613243ab46cdcdf10a160e0ca501c50a246805b3831118b282ba01ab1d23177268955"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "media_type contains a space",
+   "base": "crafted",
+   "mutation": {
+    "craft": "media_type 'a b'",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "aa06db4c0e4f023dd6bf92456a0a55ea80872c5810d79137c4f89b110fe012724b7bf4bfb511bba2ca80679596ee86c600c3d76de548613cd997611f872a50e8",
+    "blob_sha512": "758c2586c5928b3874354075ff37ce50c82465fbdfdc13fe0130a4528cf3504df14deddd94e89accd5d61aa9b98eb4374ee6cad2e95978d6590ee17ea7dd2edb"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "name is not UTF-8",
+   "base": "crafted",
+   "mutation": {
+    "craft": "name = 0xff",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "bc690585e3c06e4db2c2a672fe362c9897133fec90a46a2d4cac558bc3ab9c4325227ef864afd3c29b20de040951f0dcb2e7a818461b2d20b0b7ff2bc61b151a",
+    "blob_sha512": "8300df6447682d560dc86176b9667b2e5748ed70ef7f77e38664ede8c17ceaca39240e959b8ca24aa45ec56daa258a68b5af2bf98813624ede103dc7482626c1"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "sender_ik set without SIGNED",
+   "base": "crafted",
+   "mutation": {
+    "craft": "sender_ik non-zero, hflags = 0",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "5920e6dd6a3d0333127842fcd669a09c09b6930fdc9322ade2a8fede26080e1da06ea3f4e0722afe7524f5b4c3ccb0fd15511190f10e35c228b68a5d10c49067",
+    "blob_sha512": "5585f02792c9099ae1e94648084ddfaf74235c51295409a3038f148c229d1e1eb2b93b0bd95a2489c1cc66b6301c1db628863e01b2ec2298a67ea16fa483a769"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "SIGNED with zero sender_ik",
+   "base": "crafted",
+   "mutation": {
+    "craft": "hflags SIGNED, sender_ik zero",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0400000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "01eb70b0bc3a4de2b7f5959df8ad9f077e6752778e1e36bcee03b3c67d25d8208e901095477c5b20fdc40cbb47a5e8f941133803402cb99cb6f7b0b9b3ee541c",
+    "blob_sha512": "b9376d9e0b9cdaf5f41880b69acd486c08462e45686cd18a4051a64ade014b934b1f3790a577ea499786fff9b7536effc3e128a28846479d10665db1edb82f6d"
+   },
+   "expect": "AEG-FMT-04"
+  },
+  {
+   "name": "header: reserved byte set",
+   "base": "crafted",
+   "mutation": {
+    "craft": "hp[2] = 0x01",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000010000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "4b54e7420f9343236555da485b8a4a5bb15a861dde62087f5c45a4f95ecbd1b3bc9f29791576f2091af7c4004b2dd724917f0fcf94f2b7041892241fc38e4b14",
+    "blob_sha512": "207732b4868e4271b338d95c15c0d70c4c30536dce86e779e9c2fea7fd450cbf27978bc76e94e47831d7373bb03ed0f725574f8f6373353131fe52329a8b08df"
+   },
+   "expect": "AEG-FMT-03"
+  },
+  {
+   "name": "header: reserved flag bit set",
+   "base": "crafted",
+   "mutation": {
+    "craft": "hflags = 0x08",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0800000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "4b54e7420f9343236555da485b8a4a5bb15a861dde62087f5c45a4f95ecbd1b3bc9f29791576f2091af7c4004b2dd724917f0fcf94f2b7041892241fc38e4b14",
+    "blob_sha512": "e764b659c0610464750e0e306244d5337bda0dbd28638f3a20dd9251dbf524859ef12f917c1b696e2db32fc0ee07e101eb5294822fc317b211c9e4b85f466a49"
+   },
+   "expect": "AEG-FMT-03"
+  },
+  {
+   "name": "header: kem_ct non-zero without ADDRESSED",
+   "base": "crafted",
+   "mutation": {
+    "craft": "last kem_ct byte = 0x01",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "4b54e7420f9343236555da485b8a4a5bb15a861dde62087f5c45a4f95ecbd1b3bc9f29791576f2091af7c4004b2dd724917f0fcf94f2b7041892241fc38e4b14",
+    "blob_sha512": "b787d269a5f37b41a5cbe911cf08dd2559ed0087e3a854dec6c303568e0a8682cdeef63aa5da7cdf54b357f19352a42e787c7c4649e1500819c7d6aeb2b23395"
+   },
+   "expect": "AEG-FMT-03"
+  },
+  {
+   "name": "header: pw_salt non-zero without PASSPHRASE",
+   "base": "crafted",
+   "mutation": {
+    "craft": "pw_salt[0] = 0x01",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0000000000000000000000000000000001000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "4b54e7420f9343236555da485b8a4a5bb15a861dde62087f5c45a4f95ecbd1b3bc9f29791576f2091af7c4004b2dd724917f0fcf94f2b7041892241fc38e4b14",
+    "blob_sha512": "4a660f5cd558fed49ee00d86a7fbb9fff6d90f09074f2e803d79d101959de4f6723ebbd7089c9a1f8c62a7e581b1e77ede3175ea0eb4eb43987b59b3f316a12d"
+   },
+   "expect": "AEG-FMT-03"
+  },
+  {
+   "name": "header: undefined pw_profile",
+   "base": "crafted",
+   "mutation": {
+    "craft": "pw_profile = 0x03",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "02030000000000000000000000000000986a813e5ae8d3cb6966e0deef6a8b1e",
+    "P_len": 65536,
+    "P_sha512": "4b54e7420f9343236555da485b8a4a5bb15a861dde62087f5c45a4f95ecbd1b3bc9f29791576f2091af7c4004b2dd724917f0fcf94f2b7041892241fc38e4b14",
+    "blob_sha512": "5c641022ddd06e2dbef8155ba720a4a7b20fab62935088e4bdf584db43821a6ef1b25275a805354e22387792c42fbeeaceae46423a66cff71fb142bcd2c914e0"
+   },
+   "expect": "AEG-FMT-03"
+  },
+  {
+   "name": "signature: one bit flipped",
+   "base": "crafted",
+   "mutation": {
+    "craft": "sig[40] ^= 1",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0400000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "488771421bf17fa3ae2a53c81167f88e6832bca6131cb1e3dc1c348c9af3d26d6909efd1c9f4f06c4bbf9e8c87fc30a010bb2bd6484958236133d7980526f0de",
+    "blob_sha512": "2fd866ef6c3a7110206f73817db8b74b8cb5ae03eed9dc990bdc809ac06282890b88e714f242dbd1cd6f621e22c5160bb406676bdebd60bee16821bb214590cf"
+   },
+   "expect": "AEG-AUTH-01"
+  },
+  {
+   "name": "signature: non-canonical S (S + L)",
+   "base": "crafted",
+   "mutation": {
+    "craft": "S replaced by S + L",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0400000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "b602bc794a5bcc86a592704eeb785eed52ad61869a50eca2ae8f193b1d845f96c7245413564bc1a2307c46bc96b6903419cd4fd1b3821dd544e66d228277cb2f",
+    "blob_sha512": "9d829e9bae9de08e23b0860c8965c4ddfe94870c7ee2a98fa50e3be39640e2f9a56b67c31bf3b6677021bb4772b4371fde0d5436f748533bd1ab69050362bd87"
+   },
+   "expect": "AEG-AUTH-01"
+  },
+  {
+   "name": "signature: small-order R",
+   "base": "crafted",
+   "mutation": {
+    "craft": "R = identity point",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0400000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "10e4d53ea4d38eb6fc9b2bdac882f0a3a7874b617d3466bb8ebe624bda8e3f37277af558f48b1395eadd9f8532e1cdf24c7d7c7f472b60bec4ed6e47c86b663b",
+    "blob_sha512": "c046f89bedd5a78d090fa199e085430199e9c493d97ac4eced7d660055225a5a16c31924d99c75af73ff40752a28bf7fce11183fb838ec23ef25ee85c68f20d6"
+   },
+   "expect": "AEG-AUTH-01"
+  },
+  {
+   "name": "signature: small-order signer key",
+   "base": "crafted",
+   "mutation": {
+    "craft": "sender_ik = identity point, sig = (identity, 0)",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0400000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "a48f7523c4472f771328665734893500c2a794f3e7bca433ff0d441cd62df6c0c511b8b9e0ec320444f60a4d2f1883b4b295699bd675c90857633c695a0d80bd",
+    "blob_sha512": "11043d680e25276290dc6ad75b647cc3e6834f167eba67085f9b14901bacfde20983812134303b47386946bd31cb4c0e454f8717eb3b7dc006a57d0cda6dd498"
+   },
+   "expect": "AEG-AUTH-01"
+  },
+  {
+   "name": "signature made for a different transcript",
+   "base": "crafted",
+   "mutation": {
+    "craft": "signed with TH = 0^64",
+    "LS": "434c42afc500956995b5403d9fa3f9baa7671f2ad2efc3175de37af6afa29ae9",
+    "KS": "c90867a4974d0e4cf724e756b52a1a3fdb8adcbb7c3f2a3a2838489b31c4087f",
+    "hp_first_32": "0400000000000000000000000000000000000000000000000000000000000000",
+    "P_len": 65536,
+    "P_sha512": "66dfc9fe8cb5daa2dd6ffb6efeb707da43d9f92c3d222de4850e5f37ead03cf7bbb1b2a782ecf7a121acffbba267221c847e5ad40cbd2c851605b3e19a59c9f5",
+    "blob_sha512": "b5571a00ea180190d267674157a10767debe2bdb3fbd3e515269a1b7ec699e9e2d78e7fd32b89a7842037990b3e84bf2167e446a65f8dc14d686fb029f673ee2"
+   },
+   "expect": "AEG-AUTH-01"
+  },
+  {
+   "name": "chunks 0 and 1 swapped",
+   "base": "multi-chunk",
+   "mutation": {
+    "op": "swap_chunks",
+    "i": 0,
+    "j": 1
+   },
+   "expect": "AEG-CRYPTO-03"
+  },
+  {
+   "name": "final chunk removed",
+   "base": "multi-chunk",
+   "mutation": {
+    "op": "drop_chunk",
+    "i": 3
+   },
+   "expect": "AEG-CRYPTO-03"
+  },
+  {
+   "name": "chunk 1 duplicated",
+   "base": "multi-chunk",
+   "mutation": {
+    "op": "dup_chunk",
+    "i": 1
+   },
+   "expect": "AEG-CRYPTO-03"
+  },
+  {
+   "name": "bit flip in chunk 2",
+   "base": "multi-chunk",
+   "mutation": {
+    "op": "flip",
+    "offset": 132309,
+    "bit": 0
+   },
+   "expect": "AEG-CRYPTO-03"
+  },
+  {
+   "name": "addressed: wrong KEM shared secret",
+   "base": "addressed-split",
+   "mutation": {
+    "op": "factor",
+    "ss_kem": "tv('other', 32)"
+   },
+   "expect": "AEG-CRYPTO-02"
+  },
+  {
+   "name": "addressed: right secret, different recipient identity key",
+   "base": "addressed-split",
+   "mutation": {
+    "op": "factor",
+    "ik_pub": "ed_public(tv('other', 32))"
+   },
+   "expect": "AEG-CRYPTO-02"
+  },
+  {
+   "name": "addressed: no local key",
+   "base": "addressed-split",
+   "mutation": {
+    "op": "factor",
+    "kem_candidates": []
+   },
+   "expect": "AEG-CRYPTO-02"
+  },
+  {
+   "name": "passphrase: wrong pw_key",
+   "base": "addressed-passphrase-signed",
+   "mutation": {
+    "op": "factor",
+    "pw_key": "tv('other', 32)"
+   },
+   "expect": "AEG-CRYPTO-02"
+  }
+ ],
+ "identity": {
+  "seed": "58a58bee9eded7013d94cec4857b61bf5eaea110bc1b327b513a0e53bb869f1d",
+  "ik_seed": "0a5af956b010014fc807d7a6dcc84472dc00969230cd7ed49d49da552d246e27",
+  "ik_pub": "af65fb4e518115493bb42f1e60abfd01033cf75719825d81c61b6b7c815b0d48",
+  "fingerprint": "fanp ljp3 75zg r4sd vh3i jyy6 ylkp qrnc",
+  "card": {
+   "kem_pub": "tv('kem_pub', 1216) (injected)",
+   "not_before": 1800000000,
+   "not_after": 1807776000,
+   "length": 1333,
+   "signature": "df019441cc6bb08d2f0e3956f3efd7b4f8420a1665061074c70933da79814d8cae98d745094a5c19fef3c3f18a5313d195334e309d9f20abd5e11b4c06983408",
+   "check": "4cca1d74",
+   "sha512": "440b253b9f3c32670cac68527a561005ec64d46606645bb7ab2b5df023c5c8c9bb2f9b343467bb948b9ebdf401e0768814df92a6ee8cc79141c71e179913b528",
+   "text_prefix": "aegis:card:aoxwl62okgarksj3wqxr4yfl7uaqgphxk4mye..."
+  }
+ },
+ "service": {
+  "delete_verifier": {
+   "T_owner": "f417b05cb88366a68fae4cdc5492fc00afd114f9b425656b9432382a61e794d6",
+   "verifier": "f2ae08471ec782e39a1f52dd1cf4d280027d7772625e369bffa4c705d75d60b8"
+  },
+  "pow": {
+   "challenge": "2325ebe0b0ff2d24d0e515402638156f31d5a22147b32a0284b1fddc9aaa1cb7",
+   "id": "abc5ff7d75f4b0ae59bde56a86229e56afaf30183d54fe1599a9810ed6e4925b",
+   "bits": 12,
+   "counter": 509,
+   "stamp": "pow-sha512.2325ebe0b0ff2d24d0e515402638156f31d5a22147b32a0284b1fddc9aaa1cb7.00000000000001fd",
+   "digest": "00035d16bcb5ddc840935468b49effcfbc4a0c2b3a23d1a2b46af87c801fe96c0331237cd8042dae3654abfcae98acb7aa57ebc3e1565dcaa13e3cf6a9ac5fdd"
+  }
+ },
+ "live": {
+  "status": "PROVISIONAL - to be confirmed against an independent Noise implementation (plan M7)",
+  "protocol": "Noise_NNpsk0_25519_ChaChaPoly_SHA512",
+  "prologue": "41454749532d7633046c69766500463b40353d38a92391ad53779b7978aa80cd14ba081fb97fd907a86f9cdb11",
+  "psk": "7b5c816eff7436bf220cdc8e10e32a3fd2b5b24cf9ffd98da298f070843d164f",
+  "e_initiator": "767fd895a83d29ea5a7dd21711c88eecff6b658a3eeffadb33235d791584ca14",
+  "e_responder": "21a070fc94b8c60f581ef67ace9d0ea7250c152dda43684ae51fc4113d860a1d",
+  "message_1": "8190170cbd340927021ef4aeb43e742cb8f98b1a9eb7857f18338ad1879195037f96b876e51dd78357855ea009ac1464",
+  "message_2": "67d6faf9f8a0542032cba87bcc110fb73e0390d3a5236b9e9ca08e2a9490d6726286ba467629a89a190640d1bf3e2bcc",
+  "handshake_hash": "09c03e3007845caff2506fcbd31721b2a2d08d87385fbd25297af0313e42476aa1d662ca5b58d5510659da4febbb4b1c0dc36f1acc4387f7814ac72bc4c3de14",
+  "key_initiator_to_responder": "64313b2f4148c5e893dcc0e097d0a346f9286541e6844d1224b1b76eb5428cce",
+  "key_responder_to_initiator": "4116c2c41b14a3f66724d69097ad9a10a8254cc6ecf2c6bbff331257cf2bb20c",
+  "frames": {
+   "HELLO (sender, n=0)": "fbe18079d422c386ee7420c937258d31c87bc26c3bec1b8b49",
+   "READY (recipient, n=0)": "97af4f489c4d4a7c8ff9d3418f216a7cce496f74bcc15256a0"
+  },
+  "direct_psk": "73e0935d818f22d821b5deeaaf25fc00cb14242f778e6a707cfb9ae67a20db30"
+ }
+}

@@ -1,1069 +1,558 @@
-# Cryptographic Foundations for the Aegis Protocol
+# Cryptographic Foundations and Design Rationale for the Aegis Protocol
 
-**Author:** Abdulaziz  
-**Project:** Aegis — Zero-Trust Secure File Sharing Protocol  
-**Date:** June 29, 2026
-**Revision:** v2.1 — Reframed as protocol-first research (application-layer concerns moved to reference implementation notes)
+**Author:** Abdulaziz
+**Project:** Aegis — Secure File Sharing Through a Hostile Server
+**Version:** 3.0 (draft)
+**Date:** November 16, 2026
+**Revision:** v3.0 — Rewritten after the v2.1 audit. The earlier document explained how standard primitives work; this one argues why Aegis v3.0 is built the way it is, and what can and cannot be claimed for it.
 
 ---
 
 ## Abstract
 
-This research document provides an exhaustive examination of the cryptographic primitives, security architectures, and protocol design patterns that form the foundation of the Aegis protocol — a zero-trust secure file sharing protocol. We analyze modern symmetric encryption (XChaCha20-Poly1305), elliptic curve cryptography (Curve25519 for key exchange, Ed25519 for signatures), hash functions (BLAKE3), key derivation (HKDF), and advanced protocol design (Noise Protocol Framework). We further examine the Zero Trust security model and end-to-end encryption principles as they apply to protocol design. This comprehensive technical foundation establishes the theoretical and practical basis for a file sharing protocol that provides immunity against server-side breaches, insider attacks, and mass surveillance. The protocol is implementation-agnostic; a reference implementation in Rust accompanies it separately.
+Aegis lets one person hand a file to another through a storage server that is assumed to be actively malicious. This document gives the reasoning behind the v3.0 design: the security model, the choice of each primitive and the alternatives rejected, the constructions that combine them, the argument that each stated invariant holds, and the limits of that argument.
+
+It is a companion to `Aegis_project_specification.md`, which is normative. Section numbers written "spec §n" refer to it. Finding numbers written AEG-nn refer to `Aegis_audit_report.md`.
+
+Nothing here is a proof. §7 lists what a machine-checked model must establish before the design is relied on.
 
 ---
 
 ## Table of Contents
 
-1. [Introduction and Motivation](#1-introduction-and-motivation)
-2. [Symmetric Encryption: XChaCha20-Poly1305](#2-symmetric-encryption-xchacha20-poly1305)
-3. [Elliptic Curve Cryptography](#3-elliptic-curve-cryptography)
-4. [Cryptographic Hashing: BLAKE3](#4-cryptographic-hashing-blake3)
-5. [Key Derivation: HKDF](#5-key-derivation-hkdf)
-6. [Forward Secrecy and Key Ratcheting](#6-forward-secrecy-and-key-ratcheting)
-7. [The Noise Protocol Framework](#7-the-noise-protocol-framework)
-8. [Zero Trust Security Architecture](#8-zero-trust-security-architecture)
-9. [End-to-End Encryption Principles](#9-end-to-end-encryption-principles)
-10. [Implementation Technologies](#10-implementation-technologies)
-11. [Cryptographic Library Ecosystem](#11-cryptographic-library-ecosystem)
-12. [Comparative Analysis of Secure File Sharing Solutions](#12-comparative-analysis-of-secure-file-sharing-solutions)
-13. [Conclusion](#13-conclusion)
-14. [References](#14-references)
+1. [The Problem and the Model](#1-the-problem-and-the-model)
+2. [Prior Art](#2-prior-art)
+3. [Primitives](#3-primitives)
+4. [Constructions](#4-constructions)
+5. [Security Analysis](#5-security-analysis)
+6. [Metadata](#6-metadata)
+7. [What a Formal Model Must Show](#7-what-a-formal-model-must-show)
+8. [Open Problems](#8-open-problems)
+9. [Implementation Technology](#9-implementation-technology)
+10. [References](#10-references)
 
 ---
 
-## 1. Introduction and Motivation
+## 1. The Problem and the Model
 
-### 1.1 The File Sharing Security Problem
+### 1.1 What is being protected, from whom
 
-Modern file sharing faces a fundamental contradiction: users need to share files conveniently while maintaining confidentiality, integrity, and privacy. Traditional cloud storage services like Google Drive, Dropbox, and OneDrive provide convenience but require users to trust the service provider with their unencrypted data. This trust model creates multiple vulnerabilities:
+A sender wants a recipient to obtain a file. The recipient may be offline, so something must hold the file in between. That something — the storage service — is the adversary.
 
-- **Server-side breaches**: Attackers who compromise the server gain access to all user data
-- **Insider threats**: Employees with system access can read or exfiltrate user files
-- **Government surveillance**: Service providers can be compelled to hand over user data
-- **Metadata exposure**: Even without content access, communication patterns reveal sensitive information
+v2.1 described this as "Zero Trust" and cited NIST SP 800-207. That standard describes an enterprise architecture in which every access request is checked against the identity, device and location of the requester. It is about verifying users more, which is the opposite of what an anonymous file-sharing protocol does (AEG-27). The model Aegis needs is the older and simpler cryptographic one:
 
-### 1.2 The Zero-Trust Protocol Vision
+> **End-to-end security against a malicious intermediary.** The intermediary sees every byte it handles, may alter, drop, replay or keep any of them, may collude with other attackers, and is assumed to do so.
 
-This research establishes the cryptographic foundations for a file sharing protocol designed around a core principle: **the server knows nothing**. The Aegis protocol defines:
+Two consequences follow immediately, and v2.1 missed both.
 
-- Files are encrypted before they leave the client
-- The server never possesses decryption keys
-- Metadata is encrypted or meaningless
-- User identity is based on cryptographic keys, not personal information
-- Even a complete server compromise reveals nothing of value
+1. **A passive model is not enough.** v2.1 analysed a thief who copies the database. A malicious server also chooses what to serve and to whom. Every integrity property has to hold against it (spec I9, I11, I13).
+2. **Retention is forever.** A time-to-live is something the server says it will do. If the server is the adversary, every ciphertext it ever received is still there on the day any key leaks, and on the day a large quantum computer exists (AEG-07).
 
-### 1.3 Scope of This Research
+### 1.2 The second channel
 
-This document provides deep technical analysis of the primitives and design patterns that underpin the Aegis protocol:
+The sender must give the recipient something secret, or the server could decrypt. The channel that carries it is outside the protocol, and it is where real attacks happen: forwarded e-mail, synced chat histories, shoulder-surfed screens.
 
-1. **Symmetric Encryption**: How XChaCha20-Poly1305 provides authenticated encryption
-2. **Asymmetric Cryptography**: How Curve25519 and Ed25519 enable key exchange and signatures
-3. **Hashing**: How BLAKE3 provides fast, secure integrity verification
-4. **Key Management**: How HKDF enables secure key derivation
-5. **Protocol Design**: How the Noise Protocol enables secure handshakes
-6. **Architecture**: How Zero Trust principles inform protocol design
+Aegis's answer is to use two channels and require both. That only means something if it is true against the strongest relevant adversary: someone who reads one channel *and* controls the server. v2.1's construction failed this completely (AEG-01). The v3.0 requirement is spec invariant I7, and §4.1 below shows how it is met.
 
----
+### 1.3 Goals, stated so they can be tested
 
-## 2. Symmetric Encryption: XChaCha20-Poly1305
+| Goal | Statement | Spec |
+|------|-----------|------|
+| Confidentiality | An adversary lacking any one required factor cannot distinguish the sealed content from random data of the same padded length. | §2.4 |
+| Server blindness | Everything the server holds is indistinguishable from random bytes, apart from an enumerated leakage set. | I3, §2.6 |
+| Split | One artifact plus the server's whole state gives no advantage. | I7 |
+| Integrity | Any change to a blob is detected before the affected plaintext is released. | I9 |
+| Uniqueness | A blob has at most one valid opening. | I11 |
+| Origin (optional) | A signed share proves who made it, for which share and recipient, and cannot be re-targeted. | §7.5 |
+| Sender privacy | No one without the keys can tell who sealed a blob, or test a guess. | I12 |
+| Bounded damage | A stolen long-term key opens only a bounded window of past shares. | I16 |
 
-### 2.1 Overview and Design Philosophy
+### 1.4 What is out of reach
 
-XChaCha20-Poly1305 is an Authenticated Encryption with Associated Data (AEAD) algorithm that combines the XChaCha20 stream cipher with the Poly1305 message authentication code. This construction provides simultaneously:
-
-- **Confidentiality**: Unauthorized parties cannot read the plaintext
-- **Integrity**: Any modification to the ciphertext is detected
-- **Authenticity**: The recipient can verify the message came from someone with the key
-
-This is the same class of algorithm used in TLS 1.3, WireGuard VPN, and Signal Protocol, representing the current state of the art in symmetric encryption.
-
-### 2.2 The ChaCha20 Stream Cipher
-
-ChaCha20, designed by Daniel J. Bernstein, is a stream cipher that generates a pseudorandom keystream through a series of arithmetic operations. Unlike AES, which uses substitution-permutation networks requiring lookup tables, ChaCha20 uses only:
-
-- **32-bit additions**
-- **XOR operations**
-- **Bit rotations**
-
-This design provides several critical advantages:
-
-#### 2.2.1 Resistance to Timing Attacks
-
-ChaCha20's operations are inherently constant-time. There are no data-dependent branches or table lookups that could leak information through timing side channels. This is a significant advantage over AES implementations that lack hardware acceleration, which must be carefully written to avoid timing leaks.
-
-#### 2.2.2 The ChaCha Block Function
-
-The ChaCha block function operates on a 4×4 matrix of 32-bit words:
-
-```
-State Matrix Layout:
-┌──────────┬──────────┬──────────┬──────────┐
-│ "expa"   │ "nd 3"   │ "2-by"   │ "te k"   │  ← Constants
-├──────────┼──────────┼──────────┼──────────┤
-│  Key[0]  │  Key[1]  │  Key[2]  │  Key[3]  │  ← 256-bit key (first half)
-├──────────┼──────────┼──────────┼──────────┤
-│  Key[4]  │  Key[5]  │  Key[6]  │  Key[7]  │  ← 256-bit key (second half)
-├──────────┼──────────┼──────────┼──────────┤
-│ Counter  │ Nonce[0] │ Nonce[1] │ Nonce[2] │  ← Counter + 96-bit nonce
-└──────────┴──────────┴──────────┴──────────┘
-```
-
-The core operation is the "quarter round" applied 20 times in alternating column and diagonal patterns:
-
-```
-Quarter Round (a, b, c, d):
-a += b; d ^= a; d <<<= 16;
-c += d; b ^= c; b <<<= 12;
-a += b; d ^= a; d <<<= 8;
-c += d; b ^= c; b <<<= 7;
-```
-
-After 20 rounds (hence "ChaCha20"), the original state is added to the output, creating a pseudorandom 512-bit block that is XORed with plaintext to produce ciphertext.
-
-### 2.3 XChaCha20: Extended Nonce Variant
-
-Standard ChaCha20 uses a 96-bit nonce, which presents a practical limitation: with random nonces, the birthday bound at 2^48 messages creates a significant collision risk for high-volume applications.
-
-XChaCha20 solves this by extending the nonce to 192 bits (24 bytes) through a key derivation step:
-
-1. Use the first 128 bits of the 192-bit nonce with HChaCha20 to derive a subkey
-2. Use the remaining 64 bits as the standard nonce with the subkey
-
-**Mathematical representation:**
-
-```
-HChaCha20(key, nonce[0:16]) → subkey
-ChaCha20(subkey, 0 || nonce[16:24]) → keystream
-```
-
-This 192-bit nonce provides:
-
-- **Random nonce safety**: The birthday bound is now 2^96, allowing virtually unlimited messages with random nonces
-- **No nonce tracking**: Applications can generate random nonces without complex state management
-- **Simplified key management**: A single key can safely encrypt far more messages
-
-### 2.4 Poly1305 Message Authentication Code
-
-Poly1305 is a one-time authenticator that provides a 128-bit authentication tag for a message. It was designed by Bernstein to be:
-
-- **Fast**: Uses only multiplication and addition in a polynomial ring
-- **Secure**: Information-theoretically secure when used with a one-time key
-- **Simple**: Minimal implementation complexity reduces bugs
-
-#### 2.4.1 Mathematical Foundation
-
-Poly1305 treats the message as coefficients of a polynomial and evaluates it at a secret point r modulo p = 2^130 - 5:
-
-```
-tag = ((c₁ × r^n + c₂ × r^(n-1) + ... + cₙ × r¹) mod p) + s
-```
-
-Where:
-
-- `cᵢ` are 128-bit message chunks with a high bit set
-- `r` is a secret clamped value (certain bits cleared for security)
-- `s` is a one-time pad for the final result
-
-The clamping of r ensures that the polynomial evaluation in the low-order bits is reduced, preventing certain cryptographic attacks.
-
-#### 2.4.2 One-Time Key Requirement
-
-Poly1305 security depends critically on never reusing the (r, s) key pair. In XChaCha20-Poly1305, this is achieved by deriving the Poly1305 key from the first 32 bytes of ChaCha20 output:
-
-```
-ChaCha20(key, nonce, counter=0) → first 512 bits
-Poly1305_key = first 256 bits (r || s)
-```
-
-Since the nonce is unique for each message, the Poly1305 key is automatically unique.
-
-### 2.5 AEAD Construction
-
-The complete XChaCha20-Poly1305 AEAD construction works as follows:
-
-**Encryption:**
-
-1. Derive subkey using HChaCha20(key, nonce[0:16])
-2. Generate Poly1305 key from ChaCha20(subkey, 0 || nonce[16:24], counter=0)
-3. Encrypt plaintext: ciphertext = plaintext ⊕ ChaCha20(subkey, nonce, counter=1...)
-4. Authenticate: tag = Poly1305(poly_key, AAD || padding || ciphertext || padding || lengths)
-
-**Decryption:**
-
-1. Derive subkey and Poly1305 key identically
-2. Verify tag matches computed value
-3. If valid, decrypt ciphertext; otherwise, reject
-
-The Associated Data (AD) allows authenticating header information that should not be encrypted (like version numbers or metadata) while ensuring it cannot be tampered with.
-
-### 2.6 Security Properties
-
-| Property             | Guarantee                                                    |
-| -------------------- | ------------------------------------------------------------ |
-| Key size             | 256 bits                                                     |
-| Nonce size           | 192 bits (XChaCha20)                                         |
-| Tag size             | 128 bits                                                     |
-| Security level       | 128-bit security for all operations                          |
-| Nonce reuse          | Complete security failure (confidentiality AND authenticity) |
-| Timing attacks       | Resistant by design                                          |
-| Cache-timing attacks | Resistant by design                                          |
-
-### 2.7 Why XChaCha20-Poly1305 for Secure File Sharing
-
-For a zero-trust file sharing protocol, XChaCha20-Poly1305 is ideal because:
-
-1. **Per-file ephemeral keys**: Each file can use a unique key without nonce tracking
-2. **Random nonces**: 192-bit nonces can be randomly generated without collision risk
-3. **Software performance**: No hardware acceleration required, delivering excellent performance on any platform
-4. **Authenticated encryption**: Prevents silent file corruption or tampering
-5. **Well-analyzed**: Used in TLS 1.3, adopted by major protocols, extensively studied
+Endpoint compromise, a recipient who leaks, coercion, a network observer who sees both ends, and a server that refuses service. These are stated in spec §2.5 and not argued further here.
 
 ---
 
-## 3. Elliptic Curve Cryptography
+## 2. Prior Art
 
-### 3.1 Introduction to Elliptic Curves
+v2.1 claimed that split-key delivery and per-file keys existed nowhere else. Neither claim was true (AEG-29). The accurate picture is more useful, because several existing systems solved pieces of this problem well and one of them shows how such a service ends.
 
-Elliptic Curve Cryptography (ECC) provides asymmetric cryptographic operations (key exchange, digital signatures) with dramatically smaller key sizes than RSA. A 256-bit ECC key provides security roughly equivalent to a 3072-bit RSA key.
+| System | What it does | What Aegis takes from it | Where Aegis differs |
+|--------|--------------|--------------------------|---------------------|
+| **OpenPGP** (1991–) | Hybrid encryption: a fresh session key per message, wrapped to recipient keys. | Per-file keys are a thirty-year-old idea. | No long-term-key-only mode; no cleartext recipient key IDs. |
+| **Signal attachments** | Ciphertext on an untrusted CDN; a fresh key and a digest travel inside the end-to-end encrypted message. | This *is* split delivery: location and key by different paths. | Aegis makes the split two-of-two and independent of any one messenger. |
+| **Firefox Send** (2017–2020) | Client-side encryption; the secret in the URL fragment; optional password; expiry and download limits; an owner token for deletion. | The capability model; honest framing of expiry. | No web client, so no server-delivered code holding the key; padding; split secrets. |
+| **Magic Wormhole** | A short spoken code, turned into a strong key by a PAKE; relayed peer-to-peer transfer. | Relayed live transfer; the right way to do spoken codes (deferred, spec App. E). | Aegis also supports offline recipients. |
+| **age** | A small, strict file-encryption format: HKDF, ChaCha20-Poly1305 in 64 KiB STREAM chunks, a header MAC. | The payload construction, nearly unchanged. | Aegis hides the header and adds a server protocol. |
+| **Tahoe-LAFS** | Storage on untrusted servers, with access expressed as unforgeable capability strings. | Authorisation by possession instead of identity. | Aegis is transfer, not a filesystem. |
+| **OnionShare** | The sender hosts the file as a Tor onion service. | Onion origins are first-class in Aegis. | Offline recipients; no requirement that the sender run a server. |
+| **Proton Drive, Tresorit** | End-to-end encrypted cloud storage tied to accounts. | — | No accounts; the server sees no identities. |
 
-An elliptic curve over a finite field is the set of points (x, y) satisfying:
+**The lesson of Firefox Send.** Mozilla withdrew the service in 2020 because it was being used to deliver malware. An anonymous host of opaque files attracts that use, and the operator cannot scan what it cannot read. This is the most relevant precedent for Aegis, and v2.1 did not mention it. v3.0's response is in spec §10.4 and §10.7: admission control that costs something without identifying anyone, takedown by address, a reporting path made unambiguous by key commitment, and the absence of any web page that a link could open.
 
-```
-y² = x³ + ax + b (mod p)
-```
-
-Plus a special "point at infinity" O that serves as the identity element.
-
-The security of ECC relies on the Elliptic Curve Discrete Logarithm Problem (ECDLP): given points G and Q = nG, finding n is computationally infeasible.
-
-### 3.2 Curve25519 for Key Exchange
-
-Curve25519, designed by Daniel J. Bernstein in 2005, is a Montgomery curve optimized for the Diffie-Hellman key exchange protocol. Its equation is:
-
-```
-y² = x³ + 486662x² + x (mod 2²⁵⁵ - 19)
-```
-
-#### 3.2.1 Design Goals
-
-Curve25519 was designed with explicit security goals:
-
-1. **128-bit security level**: Resistant against all known attacks
-2. **Fast arithmetic**: The prime 2²⁵⁵ - 19 enables fast modular reduction
-3. **Side-channel resistance**: Montgomery ladder provides constant-time execution
-4. **No special handling**: Every 32-byte string is a valid public key
-5. **Transparent parameters**: No unexplained constants that could hide backdoors
-
-#### 3.2.2 X25519 Key Exchange
-
-X25519 is the Diffie-Hellman function using Curve25519:
-
-```
-Alice's private key: a (32 random bytes, clamped)
-Alice's public key: A = a × G (32 bytes, x-coordinate only)
-
-Bob's private key: b (32 random bytes, clamped)
-Bob's public key: B = b × G (32 bytes, x-coordinate only)
-
-Shared secret = a × B = b × A = ab × G
-```
-
-The "clamping" operation modifies the private key bytes to ensure security:
-
-- Set lowest 3 bits to 0 (ensures point is on the main subgroup)
-- Set highest bit to 0 and second-highest to 1 (prevents timing attacks)
-
-#### 3.2.3 Security Properties
-
-| Property          | Value                            |
-| ----------------- | -------------------------------- |
-| Key size          | 256 bits (32 bytes)              |
-| Security level    | 128 bits                         |
-| Output size       | 256 bits (32 bytes)              |
-| Best known attack | Pollard's rho: ~2^125 operations |
-
-#### 3.2.4 Why Not NIST Curves?
-
-While NIST curves (P-256, P-384, P-521) are widely deployed, Curve25519 offers advantages:
-
-1. **Transparent design**: All parameters are clearly derived with no unexplained constants
-2. **Simpler implementation**: Montgomery arithmetic is easier to implement correctly
-3. **Side-channel resistance**: The Montgomery ladder is naturally constant-time
-4. **No cofactor complications**: Designed to avoid small subgroup attacks
-5. **Patent-free**: No licensing concerns
-
-### 3.3 Ed25519 for Digital Signatures
-
-Ed25519 is an EdDSA (Edwards-curve Digital Signature Algorithm) implementation using a curve birationally equivalent to Curve25519. It provides digital signatures with:
-
-- **Fast signing**: ~50,000 signatures per second on modern CPUs
-- **Fast verification**: ~200,000 verifications per second
-- **Small signatures**: 512 bits (64 bytes)
-- **Small keys**: 256-bit public keys, 512-bit private keys
-
-#### 3.3.1 Algorithm Overview
-
-**Key Generation:**
-
-```
-secret = 32 random bytes
-h = SHA-512(secret) → 64 bytes
-a = clamp(h[0:32])  # Private scalar
-prefix = h[32:64]   # For signature randomization
-A = a × B           # Public key (B is base point)
-```
-
-**Signing (message M):**
-
-```
-r = SHA-512(prefix || M) mod ℓ
-R = r × B
-k = SHA-512(R || A || M) mod ℓ
-s = (r + k × a) mod ℓ
-signature = (R, s)  # 64 bytes total
-```
-
-**Verification:**
-
-```
-k = SHA-512(R || A || M) mod ℓ
-Check: s × B = R + k × A
-```
-
-#### 3.3.2 Deterministic Signatures
-
-A critical security feature of Ed25519 is deterministic signature generation. The random value r is derived from the private key prefix and message:
-
-```
-r = SHA-512(prefix || M)
-```
-
-This eliminates the need for a random number generator during signing. Poor RNG quality has caused catastrophic failures in ECDSA (the Sony PlayStation 3 hack, Bitcoin ECDSA vulnerabilities), but Ed25519 is immune to these attacks.
-
-#### 3.3.3 Security Features
-
-| Property                | Guarantee                                      |
-| ----------------------- | ---------------------------------------------- |
-| Security level          | 128 bits (requires ~2^128 operations to forge) |
-| Collision resistance    | Relies on SHA-512's collision resistance       |
-| RNG failures            | Immune (deterministic signatures)              |
-| Side-channel resistance | Designed for constant-time implementation      |
-| Small subgroup attacks  | Immune by design                               |
-
-### 3.4 Application in File Sharing
-
-In a conforming implementation, these curves serve distinct purposes:
-
-**Curve25519 (X25519) for Key Exchange:**
-
-- Generating shared secrets for file encryption keys
-- Per-file ephemeral key pairs
-- Recipient-specific key encapsulation
-
-**Ed25519 for Signatures:**
-
-- Signing encrypted file packages
-- Verifying sender authenticity
-- Signing metadata and protocol messages
+**What is actually new.** A two-of-two split that survives server collusion; a blob with no cleartext structure at all, so that even the share's mode is hidden; a symmetric-only default that is post-quantum for free; and a single specification covering both stored and live transfer with the same content format. That is a modest and honest claim: a careful combination, analysed.
 
 ---
 
-## 4. Cryptographic Hashing: BLAKE3
+## 3. Primitives
 
-### 4.1 The BLAKE Family
+One rule governs the selection: **the smallest set of standard primitives that does the job.** Each one added is more code to audit, more ways to misuse, and more assumptions for the proof.
 
-BLAKE3 is the latest iteration of the BLAKE hash function family:
+v2.1 used four hash functions (BLAKE3, SHA-256, SHA-512 inside Ed25519, BLAKE2b inside Noise), two of them in documents that disagreed about which. v3.0 calls exactly one, SHA-512, and it is one that Ed25519 makes mandatory anyway.
 
-- **BLAKE**: SHA-3 finalist (2010)
-- **BLAKE2**: Faster than MD5, SHA-1, SHA-2, and BLAKE (2012)
-- **BLAKE3**: Tree-structured, parallelizable, even faster (2020)
+### 3.1 ChaCha20-Poly1305
 
-### 4.2 Design Principles
+**Role.** All symmetric encryption: the sealed header, every payload chunk, live transport, the local vault.
 
-BLAKE3 is designed around several key principles:
+**Definition.** RFC 8439. 256-bit key, 96-bit nonce, 128-bit tag.
 
-#### 4.2.1 Merkle Tree Structure
+**Security.** Proven a secure AEAD if ChaCha20 is a pseudorandom function (Procter 2014), with tight multi-user bounds (Degabriele et al. 2021). Ciphertexts and tags are pseudorandom, which the server-blindness argument uses. The probability that a single forged chunk of length `l` bytes is accepted is at most `8·⌈l/16⌉ / 2^106`; for a full 64 KiB chunk that is about `2^-91`.
 
-Unlike traditional hash functions that process input sequentially, BLAKE3 uses a binary Merkle tree:
+**Known pitfalls, and how v3.0 avoids them.**
 
-```
-                    Root Hash
-                   /         \
-                  /           \
-           Parent 1           Parent 2
-           /      \           /      \
-          /        \         /        \
-      Chunk 1   Chunk 2   Chunk 3   Chunk 4
-      (1 KiB)   (1 KiB)   (1 KiB)   (1 KiB)
-```
+- *Nonce reuse is catastrophic.* It reveals the XOR of plaintexts and the authentication key. v3.0 has no random nonces and no long-lived keys: each key encrypts one sequence under counter nonces, once (I8).
+- *It does not commit to its key* (Grubbs et al. 2017; Dodis et al. 2018; Albertini et al. 2022). See §4.4.
 
-Input is divided into 1 KiB chunks, each compressed independently, then combined in a tree structure. This enables:
+**Why not XChaCha20-Poly1305.** v2.1 chose the extended-nonce variant so that nonces could be random. That reasoning is sound for a long-lived key. Aegis has none, so the extended nonce would protect against a hazard that the design has already removed. Meanwhile XChaCha20 exists only as an expired Internet-Draft, and Noise requires plain ChaCha20-Poly1305 regardless, so keeping it would mean two AEADs. Where a long-lived key does need to encrypt many records — the local vault — v3.0 derives a fresh single-use key per record from a 256-bit random salt (spec App. C), which achieves what the extended nonce achieves, from standard parts.
 
-- **Unlimited parallelism**: All chunks can be processed simultaneously
-- **Verified streaming**: Partial verification without full file download
-- **Incremental updates**: Only affected chunks need recomputation
+**Why not AES-256-GCM.** With single-use keys and counter nonces it would also be secure; v2.1's objection about random-nonce limits no longer applies. ChaCha20-Poly1305 wins on two points: it is constant-time in portable software on every platform, and Noise already brings it in.
 
-#### 4.2.2 Compression Function
+**Why not the AEGIS ciphers.** Fast and well regarded, but still in standardisation, with fewer independent implementations, and equally non-committing. (And unrelated to this project despite the name; AEG-31.)
 
-BLAKE3's compression function is based on BLAKE2s with modifications:
+### 3.2 SHA-512 and HKDF
 
-- **Reduced rounds**: 7 rounds instead of 10 (sufficient security margin)
-- **Simplified finalization**: No length padding complexity
-- **Unified construction**: Same function for all modes
+**Role.** Every derivation, the transcript hash, checksums, fingerprints, and the content digest under a sender signature.
 
-Each round applies the quarter-round mixing function (similar to ChaCha20) to a 16-word state.
+**Definition.** FIPS 180-4; RFC 5869.
 
-### 4.3 Multiple Operating Modes
+**Why SHA-512.** Ed25519 requires it. Using it everywhere means one hash function in the trusted base. Its 512-bit output gives 256-bit collision resistance, and commitments truncated to 256 bits keep 128.
 
-BLAKE3 supports multiple modes through domain separation:
+**Why not BLAKE3.** BLAKE3 is a sound, very fast hash, and v2.1 made it central. In v3.0 it has no work to do. Key derivation hashes a few hundred bytes, where speed is irrelevant. Whole-file integrity comes from per-chunk AEAD tags, not from a file hash. The one place a long input is hashed is the content digest for signed shares, and there SHA-512's throughput is several times what the stated performance target needs. BLAKE3 also has no published standard, and "HKDF-BLAKE3", which v2.1 called standard, does not exist (AEG-05). It could return in a later suite as an optimisation for signed shares; nothing in the design forbids it.
 
-| Mode                 | Purpose                | Key                  |
-| -------------------- | ---------------------- | -------------------- |
-| Hash                 | General hashing        | None                 |
-| Keyed Hash (MAC)     | Message authentication | 256-bit key          |
-| Key Derivation (KDF) | Deriving multiple keys | Context string + IKM |
+**What HKDF is and is not.** HKDF turns a secret with enough entropy into independent keys. It does not add entropy. v2.1's research text said it could "stretch limited-entropy input"; feeding it a password gives an attacker a fast offline guessing oracle. Low-entropy inputs go through Argon2id first (§3.5), and only then into HKDF.
 
-### 4.4 Performance Characteristics
+All of Aegis's HKDF inputs are either uniformly random 32-byte strings or outputs of a KEM or of Argon2id. Extraction is therefore not strictly needed for uniformity; it is used so that every derivation has the same shape and the same proof.
 
-BLAKE3's performance is remarkable:
+**Labels.** Every call is prefixed with `"AEGIS-v3"`, a one-byte length, and a label unique to its purpose (spec §3.2). Length-prefixing makes the encoding injective, so no two purposes can ever hash the same input. v2.1 concatenated a label and a variable-length identifier with no delimiter (AEG-13).
 
-| Comparison  | BLAKE3 Speed Advantage |
-| ----------- | ---------------------- |
-| vs SHA-256  | ~12× faster            |
-| vs SHA-512  | ~8× faster             |
-| vs BLAKE2b  | ~4× faster             |
-| vs SHA3-256 | ~15× faster            |
+### 3.3 X-Wing
 
-On a modern x86-64 processor with AVX2:
+**Role.** Encrypting to a recipient's public key in addressed shares.
 
-- Single-threaded: ~7 GB/s
-- Multi-threaded: Scales linearly with cores
+**Definition.** X-Wing (Barbosa et al. 2024): X25519 and ML-KEM-768 run side by side, their outputs combined with SHA3-256 together with the X25519 ciphertext and public key.
 
-### 4.5 Security Properties
+**Why a hybrid.** A share addressed today sits on a hostile server indefinitely. If confidentiality rested on X25519 alone, it would end the day a large quantum computer exists. If it rested on ML-KEM alone, it would depend on a scheme with only a few years of deployment. X-Wing is secure if *either* holds. It is a specific, analysed combiner — not a hand-rolled concatenation — and that is why it is used instead of composing the two parts inside Aegis.
 
-| Property            | Value                         |
-| ------------------- | ----------------------------- |
-| Output size         | 256 bits default (extendable) |
-| Security level      | 128-bit collision resistance  |
-| Preimage resistance | 256 bits                      |
-| Length extension    | Immune (Merkle tree design)   |
+**Security level.** ML-KEM-768 targets NIST category 3. Deployments bound by policies that demand category 5 need a different KEM and therefore a different Aegis suite. Two things soften this: an adversary without the ShareLink faces the 256-bit symmetric secret `LS` in addition, and sealed shares use no KEM at all.
 
-### 4.6 Application in File Sharing
+**Properties relied on.**
 
-BLAKE3 serves multiple roles in secure file sharing:
+- IND-CCA2 security, giving confidentiality.
+- Ciphertexts that do not reveal which public key they were made for (Grubbs et al. 2022; Maram and Xagawa 2023, for ML-KEM), so that someone holding only a link cannot identify the recipient from the header.
+- Implicit rejection: decapsulating with the wrong key yields a pseudorandom value, not an error. Trial decryption across a recipient's keys is therefore decided by the commitment check and leaks nothing through an error path.
 
-1. **File integrity verification**: Hash entire files for corruption detection
-2. **Content addressing**: Generate unique identifiers for files
-3. **Key derivation**: Derive per-chunk keys for large files
-4. **Proof of work**: Fast hashing for rate limiting without excessive compute
+**Binding.** X-Wing binds the X25519 public key and ciphertext itself. Aegis additionally hashes the recipient's identity key and full KEM public key into the transcript (spec §6.3). The extra binding is cheap, and it ties the share to the recipient's *identity*, which the KEM alone does not know about.
 
----
+**Status.** X-Wing is an Internet-Draft. The construction has been stable, but the specification pins it by test vectors, and any change to an output byte in a final RFC is a new Aegis version.
 
-## 5. Key Derivation: HKDF
+### 3.4 Ed25519
 
-### 5.1 The Key Derivation Problem
+**Role.** Signing identity cards, and — only when the sender opts in — signing shares.
 
-Cryptographic protocols often need to:
+**Definition.** RFC 8032, pure Ed25519.
 
-- Convert a shared Diffie-Hellman secret into symmetric keys
-- Derive multiple independent keys from one master secret
-- "Stretch" limited-entropy input into high-quality keying material
+**Verification must be pinned.** Ed25519 is defined over a curve with cofactor 8, and implementations have historically disagreed about signatures involving small-order points, non-canonical encodings, and whether to multiply by the cofactor when checking (Chalkias et al. 2020). Two libraries can disagree on whether the same signature is valid. With a small-order public key, a signature can be made that verifies for every message. v2.1 did not specify verification at all (AEG-14), and its research text described Ed25519 as "immune by design" to small-subgroup issues, which is the reverse of the truth.
 
-HKDF (HMAC-based Key Derivation Function) solves these problems through a standardized construction defined in RFC 5869.
+v3.0 fixes the strictest common rule set (spec §3.3): canonical `S`, canonical encodings of `A` and `R`, neither of small order, cofactorless equation. Under these rules Ed25519 is strongly unforgeable and binds both the key and the message (Brendel et al. 2021). The executable model tests each rejection.
 
-### 5.2 Two-Phase Design
+**Determinism.** RFC 8032 signing needs no randomness, which removes the classic ECDSA failure of a repeated nonce. It is not free of risk: deterministic signing is more exposed to fault injection. For a desktop file-sharing tool that trade is acceptable; the document notes it instead of presenting determinism as a pure benefit, as v2.1 did.
 
-HKDF operates in two phases:
+**Scope.** The identity key signs two kinds of message, cards and sender signatures, under different labels. It is never used for key agreement. v2.1 left open whether the same key did both (AEG-04).
 
-#### 5.2.1 Extract Phase
+### 3.5 Argon2id
 
-```
-PRK = HMAC-Hash(salt, IKM)
-```
+**Role.** Turning a passphrase into a key: for the optional passphrase factor on a share, and for unlocking the local vault.
 
-- **IKM (Input Keying Material)**: The raw secret (e.g., DH shared secret)
-- **Salt**: Optional random value (improves security if IKM is weak)
-- **PRK (Pseudorandom Key)**: Fixed-length, high-quality secret
+**Definition.** RFC 9106, version 1.3, the `id` variant.
 
-The extract phase "concentrates" entropy from potentially non-uniform input into a uniform pseudorandom key.
+**Parameters.** Two profiles, both taken from the RFC's own recommendations so that nothing is invented: 2 GiB with one pass, and 64 MiB with three passes, each with four lanes. v2.1's plan used the library default of about 19 MiB, which is a floor for web logins (AEG-16).
 
-#### 5.2.2 Expand Phase
+**What it buys.** Each guess costs one evaluation. That multiplies an attacker's cost by a large constant; it does not rescue a weak passphrase. A passphrase of six random words from a 7,776-word list has about 77 bits of entropy and is out of reach at any plausible per-guess cost. A memorable phrase of the user's own invention may have 30. The specification says the passphrase factor is as strong as the passphrase (spec §15.5) and the client should say the same.
 
-```
-OKM = HKDF-Expand(PRK, info, L)
-```
+### 3.6 Noise NNpsk0
 
-- **PRK**: From extract phase
-- **info**: Application-specific context (binds key to purpose)
-- **L**: Desired output length
-- **OKM (Output Keying Material)**: The derived key(s)
+**Role.** The live-transfer tunnel.
 
-The expand phase stretches the PRK into multiple output keys:
+**Definition.** `Noise_NNpsk0_25519_ChaChaPoly_SHA512` (Perrin 2018): both sides send an ephemeral X25519 key; a pre-shared key is mixed in before anything else.
 
-```
-T(0) = empty string
-T(1) = HMAC-Hash(PRK, T(0) || info || 0x01)
-T(2) = HMAC-Hash(PRK, T(1) || info || 0x02)
-...
-OKM = T(1) || T(2) || ... (truncated to L bytes)
-```
+**Why this pattern.** By the time two parties attempt a live transfer they already share a strong secret: the artifacts. A pattern keyed by that secret is the direct expression of "only the people I gave these to". v2.1 used the XX pattern, which authenticates by long-term identity keys — keys of the wrong type that the specification never bound to an identity and that the reference code never checked (AEG-12). Identity assurance has not been lost by the change: where a sender wants it, it comes from the blob itself, through addressing and signing, in live and stored mode alike.
 
-### 5.3 Security Properties
+**What it provides.** Mutual proof of the pre-shared key; forward secrecy from the ephemeral exchange; and, because the pre-shared key is a 256-bit symmetric secret, confidentiality against a quantum adversary who does not also learn the artifacts. Noise patterns of this family have machine-checked analyses (Kobeissi et al. 2019; Dowling et al. 2020; Girol et al. 2020).
 
-| Property             | Guarantee                           |
-| -------------------- | ----------------------------------- |
-| Output uniformity    | Indistinguishable from random       |
-| Key separation       | Different `info` → independent keys |
-| Entropy preservation | Full entropy of IKM preserved       |
-| Forward secrecy      | PRK not recoverable from OKM        |
-
-### 5.4 Application in File Sharing
-
-HKDF is used throughout a conforming implementation:
-
-1. **From DH secret to file key**:
-
-   ```
-   PRK = HKDF-Extract(salt, DH_shared_secret)
-   file_key = HKDF-Expand(PRK, "file-encryption", 32)
-   ```
-
-2. **Multiple keys from one secret**:
-
-   ```
-   encryption_key = HKDF-Expand(PRK, "encryption", 32)
-   mac_key = HKDF-Expand(PRK, "mac", 32)
-   metadata_key = HKDF-Expand(PRK, "metadata", 32)
-   ```
-
-3. **Per-chunk keys for large files**:
-   ```
-   chunk_key[i] = HKDF-Expand(file_key, "chunk" || i, 32)
-   ```
+**What it does not provide.** A ratchet. v2.1 claimed "session ratcheting"; Noise has none, and a single short-lived session does not need one.
 
 ---
 
-## 6. Forward Secrecy and Key Ratcheting
+## 4. Constructions
 
-### 6.1 The Forward Secrecy Problem
+### 4.1 The split
 
-Traditional public-key encryption has a fundamental vulnerability: if an attacker records encrypted communications and later compromises the private key, they can decrypt all past communications.
+**Requirement.** With two artifacts, either one alone — together with everything the server has — must be useless.
 
-**Forward secrecy (also called perfect forward secrecy)** guarantees that session keys cannot be recovered even if long-term keys are compromised.
-
-### 6.2 Ephemeral Keys
-
-Forward secrecy is achieved through ephemeral keys—temporary key pairs generated for each session or message:
+**Construction.** The ShareLink carries a random 256-bit `LS`. The ShareKey carries an independent random 256-bit `KS`. Everything is derived from both:
 
 ```
-Traditional (no forward secrecy):
-- Alice has permanent key pair (A_priv, A_pub)
-- Bob encrypts to A_pub
-- If A_priv leaks later, all past messages decrypted
-
-With forward secrecy:
-- Alice generates ephemeral key pair (e_priv, e_pub) for each session
-- Shared secret = DH(e_priv, Bob_pub)
-- e_priv deleted immediately after use
-- Later compromise of Alice's permanent key doesn't help
+PRK_A = HKDF-Extract("", label ‖ mode ‖ LS ‖ KS)
 ```
 
-### 6.3 Key Ratcheting
+This is two-of-two secret sharing with a KDF as the combiner. An adversary holding `LS` faces a 256-bit unknown, `KS`, in the extraction input, so `PRK_A` and everything derived from it is pseudorandom to it; the same holds with the roles reversed.
 
-Key ratcheting extends forward secrecy by continuously updating keys during a conversation. The **Double Ratchet Algorithm** (used by Signal) combines two ratchets:
+**The address is derived too.** The blob's location on the server, `blob_id`, is one of the outputs. This is the step that makes the claim hold against server collusion, and the step v2.1 lacked.
 
-#### 6.3.1 Symmetric Key Ratchet (KDF Chain)
+| Adversary | v2.1 | v3.0 |
+|-----------|------|------|
+| Link only | Fetches the ciphertext; blocked only by the recipient's private key | Cannot compute the address; holds nothing |
+| Key only | Holds public values | Cannot compute the address; holds nothing |
+| Link + server | As link only | Server can supply every blob; without `KS` none can be recognised or opened |
+| Key + server | Server scans all blobs for the matching header: found | Without `LS`, none can be recognised or opened |
 
-```
-Chain key → HKDF → (new chain key, message key)
-```
+**Why a server-assigned address would be weaker.** If the server chose the address and the link carried it, then the link alone would locate the ciphertext, and a link thief could at least fetch it, see its size, and exhaust a download limit. Deriving the address removes all three.
 
-Each message uses a unique key, and old keys cannot be recovered from new keys.
+**A commitment for free.** `blob_id` is a one-way function of the artifact secrets and is bound into the header's associated data and into the transcript. Two different sets of artifacts leading to the same blob would be a collision in HMAC-SHA-512. So a blob cannot be ambiguous about which artifacts it belongs to.
 
-#### 6.3.2 Diffie-Hellman Ratchet
+### 4.2 The two-stage schedule
 
-```
-Each party periodically sends new ephemeral DH public keys
-New shared secret → reset chain key
-```
+Stage A uses only what the artifacts carry. Stage B adds whatever else the mode requires.
 
-This provides **post-compromise security** (also called "future secrecy"): even if current keys are compromised, future keys are protected once a DH ratchet step occurs.
+The stages are separate because of an ordering constraint. A recipient must be able to locate the blob and read its header before it can know whether a KEM key or a passphrase is needed — and the KEM ciphertext it would need is itself inside the blob. So the address and the header key cannot depend on those factors. Everything that protects *content* does.
 
-### 6.4 Application in File Sharing
+**Absent factors are zero.** `PRK_B` is extracted from `chain ‖ ss_kem ‖ pw_key` with a fixed layout, unused factors being 32 zero bytes. This is the same device TLS 1.3 uses for an absent pre-shared key. It is unambiguous because the header flags that say which factors are present are bound into the transcript hash, which is the `info` input of every Stage B expansion. A blob sealed without a passphrase cannot be confused with one sealed under a passphrase whose derived key happened to be zero: their transcripts differ.
 
-For file sharing, ratcheting concepts apply to:
+**Any one unknown factor suffices.** With extraction modelled as a random oracle, `PRK_B` is pseudorandom to anyone who lacks any one of the high-entropy inputs. That is exactly what the mode table in spec §2.4 states: the adversary needs all of them.
 
-1. **Per-file ephemeral keys**: Each file uses a unique encryption key
-2. **Session-based key rotation**: P2P connections regenerate keys periodically
-3. **One-time file keys**: File keys are discarded after download
-4. **Forward-secret sharing**: Share link decryption keys are ephemeral
+### 4.3 The sealed header and mode hiding
+
+The header carries the flags, the passphrase salt and the KEM ciphertext, encrypted under a key from Stage A.
+
+Three decisions make the server's view uniform:
+
+1. **Fixed size.** The header is 1,152 bytes in every mode, with unused fields zeroed. An addressed share and a sealed one differ in no observable length.
+2. **Encrypted.** Zero-filled fields are indistinguishable from real ones.
+3. **No cleartext at all.** There is no magic number and no version byte. The version travels in the ShareLink.
+
+The result is that a blob is pseudorandom from its first byte to its last. The server cannot tell which mode a share uses, whether it has a passphrase, or whether it is signed — metadata that v2.1 would have exposed had it specified the modes at all. It also means an Aegis blob at rest in third-party object storage has no signature to match.
+
+Someone holding all the artifacts can open the header. In an addressed share without SPLIT, that includes a link thief. What they learn is that the share is addressed, and a KEM ciphertext that does not identify the recipient (§3.3). They do not learn the sender: the manifest and signature are under the Stage B key.
+
+### 4.4 Key commitment
+
+**The problem.** Given two keys, it is easy to build one ChaCha20-Poly1305 ciphertext that both accept, decrypting to two different plaintexts. In a protocol with several key inputs this lets a malicious sender show different files to different openers of "the same" blob, and it makes any abuse report disputable. Where a key can be guessed from a small set, it also enables partitioning-oracle attacks, which test many candidate keys per query.
+
+**The construction.** A 32-byte value `commit`, derived from the Stage B key and the transcript, is stored in the blob and checked before any payload is decrypted.
+
+**Why it works.** For a blob to be accepted under two different key sets, both would have to derive the same `commit`. `commit` is HMAC-SHA-512 output truncated to 256 bits; a collision across different keys implies a collision in SHA-512 truncated to 256 bits, which costs about `2^128` work. The payload key is derived from the same pseudorandom key and transcript, so fixing `commit` fixes it.
+
+This is the approach of age's header MAC and of the commitment key in several vendor encryption SDKs, expressed as one more labelled expansion. It adds no primitive.
+
+**A second use.** The commitment is also the *correct* way to answer "is this the right key?". Trying a recipient's several KEM keys, or a re-entered passphrase, is decided by comparing 32 bytes, never by attempting an AEAD decryption and observing whether it fails.
+
+### 4.5 The payload stream
+
+v2.1 encrypted a file as one AEAD message. That forces a choice between holding the whole file in memory and releasing plaintext before its tag is checked (AEG-08).
+
+v3.0 uses STREAM (Hoang et al. 2015), in the parameterisation age made familiar: 64 KiB chunks, each sealed separately under the same single-use key, with a nonce made of an 11-byte chunk counter and a one-byte final flag.
+
+| Attack | Why it fails |
+|--------|--------------|
+| Modify a chunk | Tag fails. |
+| Reorder or duplicate chunks | The counter is in the nonce; a chunk verifies only at its own position. |
+| Truncate | The new last chunk was sealed with the final flag clear, and fails when opened with it set. |
+| Append | The old last chunk was sealed with the flag set, and fails when opened as a middle chunk. |
+| Splice chunks from another blob | Different key. |
+
+The executable model exercises each of these.
+
+Because chunks are independent given the key, any chunk can be fetched and verified alone. That gives resumable transfers and bounded memory for free, and it is what makes the release rule of spec §8.3 enforceable: plaintext leaves the decryption routine one verified chunk at a time, and the whole is not presented as received until the final chunk has verified.
+
+### 4.6 Padding
+
+Exact file size identifies content surprisingly well: a specific document, a specific software release, a specific photograph. v2.1 mentioned padding in one table cell and never defined it (AEG-06).
+
+v3.0 pads the plaintext stream with Padmé (Nikitin et al. 2019), which rounds a length up to a value with a limited number of significant bits. Two properties matter:
+
+- **Overhead is small.** Padmé's general bound is about 12%, reached only for inputs of a few bytes. Aegis never pads below 64 KiB, and from there upward the padding is always less than 1/32 of the length, about 3.1%, falling to 1.6% above 4 GiB.
+- **Leakage is O(log log)** of the size instead of O(log). Between 64 KiB and 1 GiB there are 14 doublings, each with 32 permitted sizes: 448 size classes in total, or under 9 bits, against roughly 30 bits for an exact length.
+
+A floor of one full chunk means everything up to about 64 KiB — notes, keys, short documents — looks identical.
+
+Padding sits inside the encryption, between the content and any signature, and must be all zero and exactly the canonical amount. The strictness is not for secrecy; it is so that every implementation agrees on what a valid blob is.
+
+### 4.7 Sender signatures
+
+v2.1 appended an Ed25519 signature to the blob, in the clear, over the ciphertext. That exposed the sender to anyone who could test candidate public keys, let anyone strip and replace the signature, and bound neither the content nor the recipient (AEG-03).
+
+**Design decisions in v3.0.**
+
+1. **Optional, and off by default.** A signature is permanent, transferable evidence of authorship. For an anonymity tool that must be a choice. v2.1 listed non-repudiation as a goal without noting that it is the opposite of deniability.
+2. **Inside the encryption.** The signer's key is in the manifest and the signature is the last 64 bytes of the plaintext stream. Without the keys, nobody can see or test who signed.
+3. **Over the content, not just the keys.** In a sealed share every recipient holds the symmetric keys. If the signature covered only the transcript, a recipient could re-encrypt different content under the same keys and keep the genuine signature. So the signature covers a labelled SHA-512 digest of the entire plaintext stream.
+4. **Over the transcript and commitment.** This ties the signature to one share and, when addressed, to one recipient. The classic attack on combining signatures with encryption — decrypt, then re-encrypt the signed message to someone else so that it appears to have been sent to them (Davis 2001) — fails because the new share has a different transcript.
+
+**Why at the end.** The digest covers the whole stream, so the signature can only be produced after the last byte. Placing it in a trailer keeps sealing a single pass. The recipient learns that the signature is valid only on completion, which is why the release rule forbids showing a signer as authenticated before then.
+
+**What an unsigned share proves.** Only that its maker held the artifacts. The specification requires clients to say so, and forbids presenting an unsigned share as being "from" anyone (spec §5.3).
+
+### 4.8 Capabilities
+
+The server needs to decide who may fetch and who may delete, without knowing who anyone is. v2.1 left this undefined, so deletion was open to anyone with a link (AEG-11).
+
+v3.0 uses capabilities: authority is a value that cannot be guessed.
+
+- **Read** is knowledge of `blob_id`.
+- **Burn** is a token derived from the artifacts, so any legitimate recipient holds it. It lets a recipient's client remove the blob once it has been read.
+- **Owner** is a token the sender draws at random. It is deliberately *not* derived from the share secrets, so the sender can erase those — which is what gives sealed shares their forward secrecy — and still revoke the blob later.
+
+The server stores a hash of each delete token, so a leaked server database cannot be used to delete blobs. None of these values helps decrypt anything.
+
+### 4.9 Live transfer
+
+**Layering.** The live tunnel carries the same blob that would have been stored. One content format means one thing to analyse; the tunnel is a transport.
+
+What the tunnel adds is real but specific. The ciphertext is not at rest on the server. A relay that records the session cannot later decrypt its recording by obtaining the artifacts, because the session key also depended on ephemeral keys that are gone. And the sender learns that the recipient verified the whole file.
+
+**Replay.** The first handshake message can be replayed by anyone who recorded it. In response a sender would compute keys the replayer cannot derive, so nothing leaks — but a careless sender would then stream the whole blob to nobody and consider it delivered. The specification therefore requires the recipient's first transport message, `READY`, before any data flows. Producing it needs the ephemeral private key.
+
+**Relay by default.** A direct connection reveals each party's network address to the other. For a protocol whose identity model is "no personal information", that is a disclosure users must choose, so it is opt-in. v2.1 presented peer-to-peer as a privacy improvement and as resilience against server outage; it is neither, since the server still brokers the connection (AEG-21).
+
+### 4.10 Identity
+
+**The seed restores the identity and nothing else.** The Ed25519 identity key is derived from a 32-byte seed that the user writes down. KEM keys are *not* derived from it. If they were, the recovery phrase would decrypt every addressed share the user had ever received, and rotation would be theatre. Because they are random and destroyed on schedule, a stolen device or a stolen phrase exposes at most a bounded window (I16).
+
+The cost is that addressed shares not yet opened are lost with the device. For a transfer protocol with a 30-day maximum lifetime, where the sender can simply seal again, that is the right trade. The client must say so when the user makes a backup.
+
+**Cards.** A card is the identity key's signature over a KEM public key and a validity window of at most 90 days. The window bounds how long a stolen KEM key is useful and how long a replayed old card is accepted.
+
+**No directory.** Publishing cards through the storage service would make it a key server: it would learn who looks up whom, and could serve false keys. Cards travel out of band, and authenticity rests on comparing fingerprints. This is less convenient and it is the only arrangement consistent with I6.
 
 ---
 
-## 7. The Noise Protocol Framework
+## 5. Security Analysis
 
-### 7.1 Overview
+These are arguments, not proofs. Each names what it assumes.
 
-The Noise Protocol Framework is a specification for constructing cryptographic protocols based on Diffie-Hellman key exchange. It's used by:
+### 5.1 Assumptions
 
-- **WhatsApp**: Billions of users
-- **WireGuard**: Modern VPN protocol
-- **Signal Protocol**: Encrypted messaging
-- **Zcash**: Cryptocurrency handshakes
+Spec §15.1 lists them as S1–S8: HKDF as a KDF with random-oracle extraction; collision resistance of truncated HMAC-SHA-512; ChaCha20-Poly1305 as an AEAD with pseudorandom ciphertexts; X-Wing as an anonymous IND-CCA2 KEM; strict Ed25519 as a strongly unforgeable, binding signature; Argon2id as memory-hard; a sound system random number generator; and the security of Noise NNpsk0.
 
-### 7.2 Components
+### 5.2 Server blindness (I1–I3, I5, I6, I12)
 
-A Noise protocol is specified by three choices:
+*Claim.* The server's view of a share — the address, the blob, the two verifiers — is indistinguishable from random strings of the same lengths.
 
-1. **Handshake pattern**: The sequence of key exchanges and messages
-2. **DH function**: Usually X25519 or X448
-3. **Cipher function**: Usually ChaChaPoly or AES-GCM
-4. **Hash function**: Usually SHA256, SHA512, or BLAKE2
+*Argument.* `LS` is uniform and unknown to the server, so `PRK_A` is pseudorandom (S1), and so are its labelled outputs: the address, the header key, the burn token and `chain`. The sealed header is an AEAD ciphertext under a pseudorandom single-use key (S3). `PRK_B` is extracted from an input containing the pseudorandom `chain`, so `commit` and the payload key are pseudorandom (S1). Each chunk is an AEAD ciphertext under that key with distinct nonces (S3). The verifiers are hashes of a pseudorandom token and of a uniform one. What remains observable is length, timing and network metadata: the set **L** of spec §2.6.
 
-### 7.3 Handshake Patterns
+Nothing a user's identity key touched is outside the AEAD, so the server sees no public key and can test no guess about who sealed the blob.
 
-Handshake patterns are named with letters indicating what keys are known or transmitted:
+### 5.3 The split (I7)
 
-- `e`: Ephemeral public key
-- `s`: Static public key
-- `ee, es, se, ss`: DH operations between key types
+*Claim.* An adversary with the server's state and one artifact does no better than the server alone.
 
-Examples:
+*Argument.* Holding `LS` but not `KS`, the adversary knows 32 bytes of the extraction input and faces 256 bits of entropy in the rest. `PRK_A` remains pseudorandom to it (S1), and the argument of §5.2 goes through unchanged. The other case is symmetric. In particular the adversary cannot compute `blob_id`, so with the server's help it can obtain every blob and still cannot tell which one is its target.
 
-- **NN**: No static keys (anonymous, forward-secret)
-- **NK**: Initiator knows responder's static key
-- **XX**: Both parties exchange static keys
-- **IK**: Initiator knows responder's key, sends own encrypted
+### 5.4 Integrity and uniqueness (I9, I11)
 
-### 7.4 Security Properties
+Any alteration of the header changes the transcript, hence the keys, hence the commitment — or fails the header's own tag. Any alteration of a chunk fails that chunk's tag; reordering, truncation and extension fail as tabulated in §4.5 (S3). Uniqueness follows from §4.4 (S2).
 
-Different patterns provide different guarantees:
+The release rule turns these detections into a guarantee about behaviour: an implementation that follows it never hands unverified bytes to the user.
 
-| Property              | Description                                            |
-| --------------------- | ------------------------------------------------------ |
-| Forward secrecy       | Session keys protected even if static keys compromised |
-| Identity hiding       | Static keys transmitted encrypted                      |
-| Mutual authentication | Both parties verified                                  |
-| 0-RTT encryption      | Encrypted data in first message                        |
+### 5.5 Addressed shares
 
-### 7.5 Application in File Sharing
+*Claim.* An adversary holding every artifact, but not the recipient's KEM private key, learns nothing about the content.
 
-The Noise Protocol is ideal for:
+*Argument.* It can compute Stage A and open the header. `ss_kem` is indistinguishable from random given the ciphertext and public key (S4), so `PRK_B` is pseudorandom (S1), and the payload is protected as before.
 
-1. **P2P file transfers**: Establishing encrypted tunnels between clients
-2. **Server communication**: Authenticated, encrypted channels
-3. **Cross-device linking**: Device trust establishment between a user's own desktop and web sessions
+*And the converse:* an adversary holding the recipient's private key but lacking an artifact is in the position of §5.3.
 
-For peer-to-peer file transfers, a pattern like **XX** provides:
+### 5.6 Signatures
 
-- Mutual authentication
-- Forward secrecy
-- Identity hiding
+*Claim.* If a signed share opens and names identity key `K`, then the holder of `K` signed exactly this content for exactly this share and recipient.
 
----
+*Argument.* The signed message contains the transcript hash, the commitment, and a SHA-512 digest of the stream. Producing a valid signature on a different triple is a forgery (S5) or a hash collision (S2). The transcript hash fixes the address, the header and the recipient binding; the digest fixes the manifest, content and padding. Strict verification excludes the degenerate keys for which signatures are not binding.
 
-## 8. Zero Trust Security Architecture
+### 5.7 Forward secrecy
 
-### 8.1 The Zero Trust Model
+"Forward secrecy" was used loosely in v2.1 and is defined per mode here.
 
-Zero Trust is a security philosophy that eliminates implicit trust:
+| Mode | What is compromised later | What stays secret | Why |
+|------|---------------------------|-------------------|-----|
+| Sealed | Any device, any long-term key | Everything, provided the artifacts were erased | No long-term key was ever involved. |
+| Sealed | A channel history containing an artifact | Everything, unless *both* histories are obtained (with SPLIT) | §5.3 |
+| Addressed | Recipient's device, including KEM keys | Shares to KEM keys already destroyed | I16; random, scheduled keys |
+| Addressed | Recovery seed | All shares | KEM keys are not derived from it |
+| Live | The artifacts, after the session | The recorded session | Ephemeral exchange (S8) |
 
-> **"Never trust, always verify"**
+v2.1's claim — that deleting the sender's ephemeral key protects past files against compromise of the recipient's long-term key — described none of these and was false (AEG-02).
 
-Traditional security models assume the network perimeter is secure and trust internal traffic. Zero Trust assumes:
+Stronger forward secrecy for addressed shares would need one-time prekeys (Marlinspike and Perrin 2016) and with them a directory that hands them out, which is in tension with I6. It is deferred, not dismissed.
 
-- The network is always hostile
-- External and internal threats exist
-- Every access must be verified
+### 5.8 Post-quantum analysis
 
-### 8.2 Core Principles
+Take an adversary who records everything now and has a large quantum computer later.
 
-#### 8.2.1 Verify Explicitly
+| Mode | Adversary additionally holds | Outcome |
+|------|------------------------------|---------|
+| Sealed, any | Nothing | Safe: only symmetric primitives with 256-bit keys are involved. |
+| Addressed | Nothing | Safe: `LS` is unknown, so the KEM is not even reached. |
+| Addressed | The ShareLink | Safe while ML-KEM-768 holds. |
+| Addressed + split | The ShareLink | Safe: `KS` is unknown. |
+| Live | Nothing | Safe: the pre-shared key is symmetric. |
+| Live | The artifacts, obtained later | Session key recoverable by breaking X25519. The inner blob is then protected as in the rows above. |
 
-Every request must be authenticated and authorized based on all available data points:
+The default mode needs no post-quantum assumption at all. That is a consequence of choosing a symmetric split as the foundation, and it is the strongest argument for that choice.
 
-- User identity
-- Device health
-- Location
-- Time of access
-- Resource sensitivity
+Signatures are a separate matter. Ed25519 can be forged by a quantum adversary, but only from the day such a machine exists; it does not undo the confidentiality of anything already sealed. Hybrid signatures are deferred.
 
-#### 8.2.2 Least Privilege Access
+### 5.9 Numbers
 
-Grant minimum necessary permissions:
-
-- Time-limited access
-- Just-in-time provisioning
-- Scope-limited permissions
-
-#### 8.2.3 Assume Breach
-
-Design systems assuming attackers are already inside:
-
-- Minimize blast radius through segmentation
-- Encrypt all traffic
-- Implement deep monitoring
-
-### 8.3 Application to File Sharing
-
-In the Aegis protocol, Zero Trust means:
-
-1. **Server doesn't trust server**: Even compromised, no useful data
-2. **Client doesn't trust client**: Recipients can't impersonate senders
-3. **No implicit trust**: Every file access verified cryptographically
-4. **Metadata is hostile**: All metadata encrypted or meaningless
-
-### 8.4 NIST SP 800-207
-
-The National Institute of Standards and Technology (NIST) published guidance on Zero Trust Architecture in SP 800-207, recommending:
-
-- Strong identity verification
-- Device authentication
-- Least privilege access
-- Micro-segmentation
-- Continuous monitoring
+| Event | Bound |
+|-------|-------|
+| Guess a 256-bit secret | `2^-256` per attempt; about `2^128` quantum work |
+| Two of `2^64` blobs share an address | `≈ 2^-129` |
+| Find two key sets opening one blob (I11) | `≈ 2^128` work |
+| Forge one full payload chunk | `≈ 2^-91` per attempt |
+| Forge a ShareLink or ShareKey checksum | `2^-32`, deliberately: it detects typing errors and has no security role |
+| Find a second identity key with a given fingerprint | `≈ 2^160` work |
 
 ---
 
-## 9. End-to-End Encryption Principles
+## 6. Metadata
 
-### 9.1 Definition
+Content is the easy part. Who communicates with whom, and when, is what an adversary with legal power usually wants, and it is where "the server knows nothing" has to be most careful.
 
-End-to-end encryption (E2EE) ensures that data is encrypted at the source and can only be decrypted at the destination. No intermediate party—including the service provider—can access the plaintext.
+**What Aegis removes.** Names, types and exact sizes are encrypted. The share's mode is hidden. No public key reaches the server. There are no accounts, so nothing links two uploads by the same person at the protocol level.
 
-### 9.2 Key Requirements
+**What Aegis cannot remove.** A network address connected at a certain time and moved a certain number of bytes. If one address uploads a 3 MB blob and another fetches it a minute later, the server knows those two addresses share a file.
 
-#### 9.2.1 Client-Side Encryption
+**What follows.**
 
-Encryption MUST happen on the client device before data leaves:
-
-```
-Client: plaintext → encrypt(key) → ciphertext → send
-Server: receives ciphertext (cannot decrypt)
-Recipient: receives ciphertext → decrypt(key) → plaintext
-```
-
-#### 9.2.2 Key Management
-
-Keys must be:
-
-- Generated locally on client devices
-- Never transmitted to servers
-- Protected at rest (encrypted storage)
-- Ephemeral when possible
-
-#### 9.2.3 Zero Knowledge
-
-The server should have "zero knowledge" of:
-
-- File contents
-- File names (should be encrypted)
-- User identities beyond what's necessary
-
-### 9.3 Threat Model
-
-E2EE protects against:
-
-| Threat           | Protection                             |
-| ---------------- | -------------------------------------- |
-| Server breach    | Server only has meaningless ciphertext |
-| Insider attack   | Employees cannot access data           |
-| Legal compulsion | Provider cannot comply (has no data)   |
-| Network sniffing | Traffic already encrypted              |
-
-E2EE does NOT protect against:
-
-- Compromised endpoints (malware on user device)
-- Key theft (attacker gets user's private key)
-- Traffic analysis (timing, volume patterns)
-- Coerced disclosure (user forced to reveal key)
-
-### 9.4 Split-Key Architecture
-
-A powerful enhancement to E2EE is split-key delivery:
-
-```
-Traditional:
-- Share link contains encrypted blob URL + decryption key
-- Link theft = complete access
-
-Split-key:
-- Share link contains only encrypted blob URL
-- Decryption key sent through separate channel
-- Both must be obtained for access
-```
-
-This provides defense-in-depth: stealing one component is insufficient.
+- The specification enumerates this residue (spec §2.6) instead of claiming there is none.
+- Clients should work through a SOCKS proxy, and services should be reachable as onion services. With both, the server sees neither party's address.
+- An operator can be legally compelled to start recording what it is able to observe. The Proton case of 2021 is the standard example: a provider that kept no address logs was ordered to collect them for one account, and did. "We keep no logs" is a policy; "we cannot see it" is a property. Only the second survives an order, and Aegis's guarantees are written in terms of the second.
+- Padding reduces what size reveals, but not to zero. Timing is not hidden at all. Hiding it needs cover traffic or mixing, which is a different system.
 
 ---
 
-## 10. Reference Implementation Technologies
+## 7. What a Formal Model Must Show
 
-While the Aegis protocol is implementation-agnostic, the reference implementation is built using Rust. This section outlines the security considerations that informed this choice.
+The executable model shows that the specification can be implemented and that it rejects what it should. It says nothing about whether an attack exists that nobody thought to test. That needs a symbolic model — Tamarin or ProVerif — in which the tool searches for attacks.
 
-### 10.1 Rust Programming Language
+**Lemmas to prove.**
 
-Rust is the ideal language for the protocol's reference implementation due to its fundamental design:
+| # | Lemma | Invariant |
+|---|-------|-----------|
+| 1 | Content secrecy against the server together with the ShareLink (SPLIT set) | I7 |
+| 2 | Content secrecy against the server together with the ShareKey | I7 |
+| 3 | Content secrecy against the server and all artifacts, without the recipient's KEM key (ADDRESSED) | §2.4 |
+| 4 | Content secrecy against a later reveal of a KEM key whose epoch had been destroyed | I16 |
+| 5 | If an opener accepts content `m` for a share, some party holding that share's factors sealed `m` | I9 |
+| 6 | If an opener accepts a signature by `K` on `m` for share `s` and recipient `r`, then `K`'s holder signed `m` for `s` and `r` | §7.5 |
+| 7 | A signature accepted in share `s` is never accepted in a share `s′ ≠ s` | §7.5 |
+| 8 | No public key of any user is derivable from the server's view | I6, I12 |
+| 9 | Live: a session completes only between holders of the artifacts | §11 |
+| 10 | Live: session keys stay secret after the artifacts are revealed post-session | §11.6 |
+| 11 | Live: the sender sends data only after the recipient has proved possession of its ephemeral key | §11.4 |
+| 12 | No secret-bearing term is ever sent to the server | I14 |
 
-#### 10.1.1 Memory Safety Without Garbage Collection
+**Outside a symbolic model.** Pseudorandomness of the server's view, the collision argument for I11, and the padding leakage are computational statements. They rest on the reductions sketched in §5, and a tool such as CryptoVerif could mechanise the key schedule. That is a stretch goal; the twelve lemmas above are the minimum.
 
-Rust's ownership system prevents:
-
-- **Use-after-free**: Compiler ensures references are valid
-- **Buffer overflows**: Bounds checking enforced
-- **Null pointer dereference**: No null pointers (Option type instead)
-- **Data races**: Compiler prevents concurrent mutable access
-
-Statistics show 70% of CVEs are memory safety issues. Rust eliminates this class entirely.
-
-#### 10.1.2 Ownership and Borrowing
-
-The compiler enforces that at any time, you can have either one mutable reference, or any number of immutable references. This eliminates data races at compile time.
-
-#### 10.1.3 No Runtime Overhead
-
-Unlike garbage-collected languages, Rust achieves memory safety at compile time:
-
-- No GC pauses
-- Predictable performance
-- Suitable for highly concurrent environments
-
-## 11. Cryptographic Library Ecosystem
-
-### 11.1 Libsodium
-
-Libsodium is a modern cryptographic library forked from NaCl (Networking and Cryptography library). It provides:
-
-#### 11.1.1 Design Philosophy
-
-- **Simple API**: Hard to misuse
-- **Secure defaults**: No unsafe optional parameters
-- **Constant-time**: Side-channel resistant
-- **Cross-platform**: Works everywhere
-
-#### 11.1.2 Core Algorithms
-
-| Category         | Algorithm          |
-| ---------------- | ------------------ |
-| AEAD             | XChaCha20-Poly1305 |
-| Key exchange     | X25519             |
-| Signatures       | Ed25519            |
-| Hashing          | BLAKE2b            |
-| Password hashing | Argon2id           |
-| Key derivation   | HKDF               |
-
-#### 11.1.3 Security Audit Results
-
-A comprehensive security audit found:
-
-- No critical vulnerabilities
-- Clean static analysis results
-- Best practices followed throughout
-
-### 11.2 Rust Cryptographic Crates
-
-For Rust implementation, the ecosystem offers:
-
-#### 11.2.1 ring
-
-Developed by Brian Smith (former Firefox security engineer), ring focuses on:
-
-- Minimal code size
-- Maximum security
-- No unsafe Rust where avoidable
-- Constant-time implementations
-
-#### 11.2.2 dalek-cryptography
-
-The Dalek crates provide pure-Rust implementations:
-
-- `curve25519-dalek`: Core curve operations
-- `x25519-dalek`: X25519 key exchange
-- `ed25519-dalek`: Ed25519 signatures
-
-Features:
-
-- Pure Rust (no C dependencies)
-- Constant-time by default
-- SIMD acceleration when available
-
-#### 11.2.3 chacha20poly1305
-
-A pure-Rust AEAD implementation:
-
-- XChaCha20-Poly1305 support
-- SIMD acceleration
-- `no_std` compatible
-
-### 11.3 Selection Criteria
-
-For any conforming implementation, library selection should prioritize:
-
-1. **Security audit**: Independently verified
-2. **Active maintenance**: Regular updates
-3. **Rust-native**: No FFI when possible
-4. **Constant-time**: Side-channel resistant
-5. **API simplicity**: Reduce misuse potential
+**Outside any model.** The release rule, erasure of secrets, constant-time comparison and the user-interface obligations are properties of an implementation. They are covered by tests and review (plan M3, M5, M9).
 
 ---
 
-## 12. Comparative Analysis of Secure File Sharing Protocols
+## 8. Open Problems
 
-### 12.1 Existing Solutions Overview
-
-| Solution     | Encryption       | Server Knowledge | Anonymity        |
-| ------------ | ---------------- | ---------------- | ---------------- |
-| Proton Drive | E2EE (OpenPGP)   | Zero-access      | Email identity   |
-| Tresorit     | E2EE (AES-256)   | Zero-knowledge   | Account identity |
-| OnionShare   | E2EE (Tor)       | No server        | High (Tor)       |
-| Sync.com     | E2EE             | Zero-knowledge   | Account identity |
-| Dropbox      | Server-side only | Full access      | Account identity |
-
-### 12.2 Protocol Architecture Comparison
-
-#### 12.2.1 Proton Drive
-
-**Strengths:**
-
-- OpenPGP-based encryption
-- Swiss jurisdiction
-- Open source
-- Integration with Proton ecosystem
-
-**Limitations:**
-
-- Email-based identity (metadata)
-- Not fully anonymous
-- No P2P option
-
-#### 12.2.2 Tresorit
-
-**Strengths:**
-
-- Business-grade features
-- Compliance certifications (HIPAA, GDPR)
-- Granular access controls
-
-**Limitations:**
-
-- Account-based identity
-- Requires trust in service
-- Closed source
-
-#### 12.2.3 OnionShare
-
-**Strengths:**
-
-- Highest anonymity (Tor)
-- No server storage
-- Fully open source
-
-**Limitations:**
-
-- Requires Tor (slow)
-- Both parties must be online
-- No persistent storage
-
-### 12.3 Protocol Gap Analysis
-
-No existing open protocol provides ALL of:
-
-| Feature                 | Available       | Missing in All              |
-| ----------------------- | --------------- | --------------------------- |
-| E2EE                    | ✓ All above     |                             |
-| Zero metadata           | ✓ OnionShare    | Proton, Tresorit have some  |
-| Anonymous identity      | ✓ OnionShare    | Others require registration |
-| Split-key delivery      | ✗ None          | **All missing**             |
-| Per-file ephemeral keys | ✗ None          | **All missing**             |
-| Offline recipient       | ✓ Cloud storage | OnionShare                  |
-| P2P option              | ✓ OnionShare    | Others                      |
-| Encrypted search        | ✗ None          | **All missing**             |
-
-### 12.4 Aegis Protocol Differentiation
-
-The proposed protocol uniquely combines:
-
-1. **Zero-trust server architecture**: Server knows nothing (like OnionShare)
-2. **Persistent storage**: Available offline (like Proton/Tresorit)
-3. **Anonymous identity**: Key-based identity (like OnionShare)
-4. **Split-key delivery**: Defense-in-depth (unique)
-5. **Per-file ephemeral keys**: Forward secrecy for files (unique)
-6. **P2P fallback**: Best-of-both-worlds (unique combination)
+1. **Short codes.** People want to read a few words over the phone. Done naively, a short code is something the server can guess offline. Done with a PAKE it is sound, but only when both parties are online. Whether it can be offered without users mistaking it for the stored mode is as much a design question as a cryptographic one.
+2. **Several recipients.** Wrapping one content key to several KEM keys is routine. Doing it while hiding how many recipients there are, in a fixed-size or padded header, needs care.
+3. **Forward secrecy without a directory.** One-time prekeys need distribution. Fetching them through an anonymising transport, or having each contact hold a small batch, are both possible and both awkward.
+4. **Deniable authentication.** A static Diffie–Hellman between identities would authenticate the sender to the recipient without creating evidence for third parties. It is classical-only and is open to impersonation if the recipient's key leaks. Whether it is worth a third origin mode is undecided.
+5. **Timing.** Nothing in Aegis hides when a transfer happens.
+6. **Abuse.** Proof-of-work is a weak deterrent. Privacy Pass tokens are stronger but need an issuer who must itself not learn identities. There is no settled answer for an anonymous storage service.
+7. **The human channel.** The split is only as good as the user's choice of two channels. How a client can encourage a good choice without lecturing is unsolved.
 
 ---
 
-## 13. Conclusion
+## 9. Implementation Technology
 
-### 13.1 Summary of Protocol Primitives
+Short, because the implementation plan covers it.
 
-This research has examined the complete cryptographic foundation for a zero-trust file sharing protocol:
+**Language.** Rust, for memory safety without a garbage collector, and because every primitive Aegis needs has a maintained pure-Rust implementation. This removes the memory-corruption class from safe code. It does not remove logic errors, and `unsafe` blocks and FFI boundaries need the same scrutiny as C. v2.1's "eliminates this class entirely" overstated it (AEG-27).
 
-| Component                | Technology          | Purpose                       |
-| ------------------------ | ------------------- | ----------------------------- |
-| Symmetric encryption     | XChaCha20-Poly1305  | Payload encryption            |
-| Key exchange             | X25519 (Curve25519) | Establishing shared secrets   |
-| Digital signatures       | Ed25519             | Authentication, integrity     |
-| Hashing                  | BLAKE3              | Integrity, content addressing |
-| Key derivation           | HKDF                | Deriving multiple keys        |
-| Handshake protocol       | Noise Protocol      | P2P secure channels           |
-| Security model           | Zero Trust          | Protocol philosophy           |
-| Reference Implementation | Rust                | Memory-safe, auditable code   |
+**Erasing secrets** in a language that moves values freely is best-effort: a moved value may leave a copy behind that no destructor will ever see. The plan requires heap-pinned secret types, and the threat model states the limit plainly.
 
-### 13.2 Protocol Security Properties Achieved
+**Library selection criteria**, in order:
 
-By combining these primitives properly, the protocol achieves:
+1. Implements the pinned specification exactly, and passes its official test vectors.
+2. Has been independently audited, or formally verified, in a version close to the one used.
+3. Constant-time by construction for secret-dependent operations.
+4. Maintained, with a history of prompt security fixes.
+5. Small dependency tree.
+6. An API that makes misuse hard — for instance, an ephemeral-secret type that is consumed by use.
 
-1. **Confidentiality**: Only authorized parties can read payloads
-2. **Integrity**: Any modification is cryptographically detected
-3. **Authenticity**: Payload origin is verified
-4. **Forward secrecy**: Past exchanges protected even if keys compromise
-5. **Zero server knowledge**: Server breach reveals nothing
-6. **Anonymity**: Identity based on keys, not personal info
-7. **Defense in depth**: Multiple layers must fail for breach
-
-### 13.3 Implementation Challenges
-
-Even with this foundation, challenges remain:
-
-- **Endpoint security**: Client devices can be compromised
-- **Key lifecycle management**: The protocol requires conforming implementations to specify mechanisms for key generation, storage, and rotation — the security of these operations is entirely client-side.
-- **Metadata traffic analysis**: Timing patterns may leak information
-- **Performance tradeoffs**: Strong security has computational cost
-
-### 13.4 Path Forward
-
-This research establishes the theoretical and practical foundation for implementation. The subsequent project specification and implementation plan will detail how these technologies are combined into a complete protocol.
+Specific crates and versions are chosen and recorded at plan milestone M0, with the audit status of each verified at that time, not taken from this document.
 
 ---
 
-## 14. References
+## 10. References
 
-1. Bernstein, D. J. (2005). "Curve25519: New Diffie-Hellman Speed Records." _Public Key Cryptography - PKC 2006_.
+**Standards**
 
-2. Bernstein, D. J., et al. (2012). "High-Speed High-Security Signatures." _Journal of Cryptographic Engineering_.
+1. FIPS 180-4. *Secure Hash Standard.* NIST, 2015.
+2. FIPS 203. *Module-Lattice-Based Key-Encapsulation Mechanism Standard.* NIST, 2024.
+3. RFC 2119 / RFC 8174. *Key words for use in RFCs to Indicate Requirement Levels.*
+4. RFC 4648. S. Josefsson. *The Base16, Base32, and Base64 Data Encodings.* 2006.
+5. RFC 5869. H. Krawczyk, P. Eronen. *HMAC-based Extract-and-Expand Key Derivation Function (HKDF).* 2010.
+6. RFC 7748. A. Langley, M. Hamburg, S. Turner. *Elliptic Curves for Security.* 2016.
+7. RFC 8032. S. Josefsson, I. Liusvaara. *Edwards-Curve Digital Signature Algorithm (EdDSA).* 2017.
+8. RFC 8265. P. Saint-Andre, A. Melnikov. *Preparation, Enforcement, and Comparison of Internationalized Strings Representing Usernames and Passwords.* 2017.
+9. RFC 8439. Y. Nir, A. Langley. *ChaCha20 and Poly1305 for IETF Protocols.* 2018.
+10. RFC 9106. A. Biryukov, D. Dinu, D. Khovratovich, S. Josefsson. *Argon2 Memory-Hard Function for Password Hashing and Proof-of-Work Applications.* 2021.
+11. RFC 9576, 9577, 9578. *Privacy Pass* architecture, authentication scheme, and issuance protocols. 2024.
+12. T. Perrin. *The Noise Protocol Framework*, revision 34. 2018.
+13. D. Connolly, P. Schwabe, B. Westerbaan. *X-Wing: general-purpose hybrid post-quantum KEM.* Internet-Draft `draft-connolly-cfrg-xwing-kem`.
+14. *Bitcoin Improvement Proposal 39: Mnemonic code for generating deterministic keys.* 2013. (Wordlist and checksum only.)
 
-3. Bernstein, D. J. (2008). "The Salsa20 Family of Stream Ciphers." _New Stream Cipher Designs_.
+**Papers**
 
-4. O'Connor, J., et al. (2020). "BLAKE3: One Function, Fast Everywhere." _IACR Cryptology ePrint Archive_.
+15. A. Albertini, T. Duong, S. Gueron, S. Kölbl, A. Luykx, S. Schmieg. *How to Abuse and Fix Authenticated Encryption Without Key Commitment.* USENIX Security 2022.
+16. J. H. An, Y. Dodis, T. Rabin. *On the Security of Joint Signature and Encryption.* EUROCRYPT 2002.
+17. M. Barbosa, D. Connolly, J. D. Duarte, A. Kaiser, P. Schwabe, K. Varner, B. Westerbaan. *X-Wing: The Hybrid KEM You've Been Looking For.* IACR Communications in Cryptology, 2024.
+18. D. J. Bernstein. *The Poly1305-AES Message-Authentication Code.* FSE 2005.
+19. D. J. Bernstein. *Curve25519: New Diffie-Hellman Speed Records.* PKC 2006.
+20. D. J. Bernstein, N. Duif, T. Lange, P. Schwabe, B.-Y. Yang. *High-Speed High-Security Signatures.* Journal of Cryptographic Engineering, 2012.
+21. J. Brendel, C. Cremers, D. Jackson, M. Zhao. *The Provable Security of Ed25519: Theory and Practice.* IEEE S&P 2021.
+22. K. Chalkias, F. Garillot, V. Nikolaenko. *Taming the Many EdDSAs.* SSR 2020.
+23. D. Davis. *Defective Sign & Encrypt in S/MIME, PKCS#7, MOSS, PEM, PGP, and XML.* USENIX Annual Technical Conference 2001.
+24. J. P. Degabriele, J. Govinden, F. Günther, K. G. Paterson. *The Security of ChaCha20-Poly1305 in the Multi-User Setting.* ACM CCS 2021.
+25. Y. Dodis, P. Grubbs, T. Ristenpart, J. Woodage. *Fast Message Franking: From Invisible Salamanders to Encryptment.* CRYPTO 2018.
+26. B. Dowling, P. Rösler, J. Schwenk. *Flexible Authenticated and Confidential Channel Establishment (fACCE): Analyzing the Noise Protocol Framework.* PKC 2020.
+27. G. Girol, L. Hirschi, R. Sasse, D. Jackson, C. Cremers, D. Basin. *A Spectral Analysis of Noise: A Comprehensive, Automated, Formal Analysis of Diffie-Hellman Protocols.* USENIX Security 2020.
+28. P. Grubbs, J. Lu, T. Ristenpart. *Message Franking via Committing Authenticated Encryption.* CRYPTO 2017.
+29. P. Grubbs, V. Maram, K. G. Paterson. *Anonymous, Robust Post-Quantum Public Key Encryption.* EUROCRYPT 2022.
+30. V. T. Hoang, R. Reyhanitabar, P. Rogaway, D. Vizár. *Online Authenticated-Encryption and its Nonce-Reuse Misuse-Resistance.* CRYPTO 2015.
+31. N. Kobeissi, G. Nicolas, K. Bhargavan. *Noise Explorer: Fully Automated Modeling and Verification for Arbitrary Noise Protocols.* IEEE EuroS&P 2019.
+32. H. Krawczyk. *Cryptographic Extraction and Key Derivation: The HKDF Scheme.* CRYPTO 2010.
+33. J. Len, P. Grubbs, T. Ristenpart. *Partitioning Oracle Attacks.* USENIX Security 2021.
+34. V. Maram, K. Xagawa. *Post-Quantum Anonymity of Kyber.* PKC 2023.
+35. K. Nikitin, L. Barman, W. Lueks, M. Underwood, J.-P. Hubaux, B. Ford. *Reducing Metadata Leakage from Encrypted Files and Communication with PURBs.* PoPETs 2019.
+36. G. Procter. *A Security Analysis of the Composition of ChaCha20 and Poly1305.* IACR ePrint 2014/613.
 
-5. Krawczyk, H. (2010). "Cryptographic Extraction and Key Derivation: The HKDF Scheme." _CRYPTO 2010_.
+**Systems and specifications**
 
-6. Perrin, T., & Marlinspike, M. (2016). "The Double Ratchet Algorithm." _Signal Specifications_.
-
-7. Perrin, T. (2018). "The Noise Protocol Framework." _Noise Protocol Specification_.
-
-8. Rose, S., et al. (2020). "Zero Trust Architecture." _NIST Special Publication 800-207_.
-
-9. Turan, M. S., et al. (2016). "Recommendation for Key Derivation Using Pseudorandom Functions." _NIST Special Publication 800-108_.
-
-10. Langley, A. (2020). "ChaCha20-Poly1305 Cipher Suites for TLS." _RFC 8439_.
-
-11. Bernstein, D. J., & Lange, T. (2017). "SafeCurves: Choosing Safe Curves for Elliptic-Curve Cryptography." *https://safecurves.cr.yp.to*.
-
-12. Libsodium Documentation. (2023). *https://doc.libsodium.org*.
-
-13. Klabnik, S., & Nichols, C. (2023). "The Rust Programming Language." *https://doc.rust-lang.org/book/*.
+37. F. Valsorda, B. Cartwright-Cox. *The age file encryption format*, `age-encryption.org/v1`.
+38. M. Marlinspike, T. Perrin. *The X3DH Key Agreement Protocol.* Signal, 2016.
+39. E. Kret, R. Schmidt. *The PQXDH Key Agreement Protocol.* Signal, 2023.
+40. B. Warner. *Magic Wormhole.*
+41. Z. Wilcox-O'Hearn, B. Warner. *Tahoe – The Least-Authority Filesystem.* ACM StorageSS 2008.
+42. Mozilla. *Firefox Send* (2017–2020).
 
 ---
 
