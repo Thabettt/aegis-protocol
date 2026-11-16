@@ -25,6 +25,7 @@ Companion documents:
 | `Aegis_audit_report.md` | Why v2.1 was withdrawn; finding IDs (AEG-nn) referenced below |
 | `Aegis_research.md` | Design rationale, security analysis, prior art |
 | `Aegis_implementation_plan.md` | Build, verification and audit plan |
+| `Aegis_engineering_standard.md` | Binding architecture and assurance rules for implementers |
 | `model/aegis_v3_model.py` | Executable model of §3–§11; generates the test vectors |
 
 ---
@@ -143,7 +144,7 @@ These sixteen properties MUST hold in every conforming implementation, in every 
 | **I11** | One blob, one plaintext. No blob can be opened to two different plaintexts under two different sets of keys. | §6.6 |
 | **I12** | Sender identity never appears outside the encryption. | §7.5 |
 | **I13** | The server has no authority. Whatever it asserts is either verified cryptographically or presented as advisory. | §10.6, §14 |
-| **I14** | No secret is ever sent to a server: not in a URL, a header, or a body. | §4.4, §10.3 |
+| **I14** | No secret is ever sent to a server: not in a URL, a header, or a body. The only share-derived values a server ever receives are the capabilities of §10.3: one-way outputs that decrypt nothing, each sent only to the share's own origin. | §4.4, §10.3, §10.8 |
 | **I15** | Fail closed. There is no negotiation, no fallback and no downgrade path. | §13 |
 | **I16** | Long-term keys do not decrypt beyond their epoch. KEM private keys are destroyed on schedule and are never derivable from the recovery seed. | §9.3, §9.6 |
 
@@ -195,7 +196,7 @@ This is the complete leakage set **L**. I3 is the claim that SRV learns nothing 
 | Blob address | 32 pseudorandom bytes, unlinkable to any party or to any other blob |
 | Two delete verifiers | 32 pseudorandom bytes each |
 | Requested lifetime | `Aegis-Ttl`, and `Aegis-Max-Fetches` if set |
-| Timing | Time of upload, of every fetch and byte range, of deletion |
+| Timing | Time of upload, of every fetch and byte range, of deletion. §10.8 rule 6 keeps the fetch pattern independent of the share's mode. |
 | Which delete capability was used | Owner or burn |
 | Network metadata | Client addresses and transport fingerprints, unless the client uses an anonymising transport (§15.4) |
 | Admission stamp | Proof-of-work bound to the blob address; carries no identity |
@@ -955,6 +956,18 @@ The `burn` extension makes the recipient's client send `DELETE` with `T_burn` af
 3. A service cannot scan content, and MUST NOT require the means to.
 4. There is no web client. A ShareLink is not an `https` URL and does nothing in a browser, which removes the drive-by delivery path that ended earlier services of this kind.
 
+### 10.8 Client requirements toward the service
+
+The service is the adversary (I13). A client therefore:
+
+1. MUST NOT follow HTTP redirects. A redirect would carry a capability to another origin (I14).
+2. MUST send capabilities only to the `origin` named in the ShareLink, only over TLS 1.3 with full certificate validation (or to a `.onion` origin), and only in the request each one authorises.
+3. MUST send `Accept-Encoding: identity`, MUST reject compressed responses, and MUST ignore cookies.
+4. MUST bound every response: a size limit on `/v3/info` and on error bodies, and exactly the expected length for blob data.
+5. MUST use a proxy only when the user has configured one explicitly, never one taken silently from the environment.
+6. **MUST fetch uniformly.** The timing and pattern of a client's requests MUST NOT depend on anything inside the sealed header. In particular a client MUST NOT pause, slow or reorder a download while it derives a passphrase key, tries KEM keys, or waits for the user to type a passphrase; it continues fetching ciphertext to temporary storage. Otherwise the fetch pattern tells the server which mode a share uses, which I5 says it must not learn.
+7. MUST NOT fetch anything when a ShareLink arrives through an operating-system link handler until the user has seen the origin and confirmed. An unconfirmed fetch discloses the user's network address to a server of the link author's choosing.
+
 ---
 
 ## 11. Live Transfer
@@ -1099,6 +1112,8 @@ An implementation claims conformance in one or more roles.
 | **Opener** | §3–§7, §8.2–§8.4 (recipient); every mode; both Argon2id profiles; both defined extensions |
 | **Storage service** | §10 |
 | **Live peer** | §11.1–§11.4 in the role of sender, recipient, or both |
+
+Any Sealer, Opener or Live peer that talks to a storage service MUST also implement §10.8.
 
 A conforming implementation MUST pass the published test suite for its roles:
 
@@ -1272,10 +1287,22 @@ Secrets are held in types that erase on drop, are not `Copy` or `Clone`, do not 
 
 - A received `name` is a display string only. To save a file, the client strips path separators, control characters and bidirectional-override characters, refuses reserved device names, and never writes outside the directory the user chose.
 - The client never opens or executes a received file automatically, and never chooses an application based on `media_type` alone.
+- The client never overwrites an existing file, and marks received files with the operating system's "came from elsewhere" attribute where one exists.
+- The process that holds vault keys never interprets received content: no previews, no thumbnails, no archive extraction.
 
 ### C.4 Interface obligations
 
 The reference client MUST implement the labelling rules of §4.4, §5.3, §7.5, §9.5 and §10.6. They are part of the security design, not decoration.
+
+In addition:
+
+- Artifacts, passphrases and recovery phrases are never accepted as command-line arguments or environment variables, where the process list and shell history would expose them. They are read from a prompt, standard input, or a file the user names.
+- A fingerprint is always shown in full. No interface shows a shortened one.
+- A sender's `note` is rendered as plain text, visibly attributed to the sender, with nothing in it made clickable.
+
+### C.5 Time
+
+The vault records the latest time it has been given and rejects an earlier one for card validity, key destruction and expiry. Setting the clock back cannot revive an expired card or postpone the destruction of a key.
 
 ## Appendix D: Test vectors
 

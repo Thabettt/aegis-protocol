@@ -23,6 +23,8 @@ The order matters more than anything else in this document:
 
 v2.1's plan built applications in parallel with an unfinished protocol, "locked" the specification after writing the code, and put the audit last. This plan fixes the specification's behaviour with test vectors first, proves what can be proved, and only then spends effort on things users see.
 
+**This plan says what is built and in what order. `Aegis_engineering_standard.md` says how every piece must be structured, attacked and evidenced, and it is binding.** Where the two differ, the standard wins. Each milestone below carries the additional gates listed in §7 of the standard.
+
 ### What exists today
 
 | Artefact | State |
@@ -30,6 +32,7 @@ v2.1's plan built applications in parallel with an unfinished protocol, "locked"
 | `Aegis_project_specification.md` v3.0 | Draft; complete; not frozen |
 | `Aegis_research.md` v3.0 | Rationale and analysis |
 | `Aegis_audit_report.md` | Findings against v2.1 |
+| `Aegis_engineering_standard.md` v1.0 | Architecture rules, the eight gates, the five test rings, the attack catalogue, the sabotage suite |
 | `model/aegis_v3_model.py` | Executable model; all checks pass |
 | `model/vectors_v3_provisional.json` | 6 positive and 45 negative vectors, plus identity, service and live-handshake vectors |
 | Rust code | None |
@@ -134,7 +137,7 @@ Candidates only. Each is confirmed at M0 by a written decision in `docs/decision
 
 ## Engineering rules
 
-These bind every milestone. Each is checked by CI or by review.
+These bind every milestone. Each is checked by CI or by review. They are a summary; the full, numbered rules are in `Aegis_engineering_standard.md` §2 and §3, including the `no_std` requirement for Tier 1, the five data classes, ports and deterministic simulation, and the size budgets.
 
 ### Secrets
 
@@ -410,7 +413,8 @@ For each lemma, also write a deliberately broken variant of the protocol — for
 - The sender and recipient state machines of §8.4, including the rule that artifacts are released only on `S_DONE`.
 - HTTP client for spec §10.2: admission, upload with retry and resumption from the staged immutable blob, ranged download, delete.
 - The staged blob: sealing writes ciphertext to a file; every upload attempt and any live transfer reads from it (I8).
-- SOCKS5 proxy support from the first version (spec §15.4).
+- SOCKS5 proxy support from the first version (spec §15.4), used only when configured explicitly.
+- The client rules of spec §10.8: no redirects, identity encoding only, bounded responses, and uniform fetching — the download never pauses for key derivation or a passphrase prompt.
 - Range-checking of everything the server says (I13).
 - Burn: `DELETE` with `T_burn` after a verified open when the manifest asks for it.
 - KEM key rotation and scheduled destruction, driven by a clock value supplied by the caller.
@@ -489,11 +493,13 @@ aegis id new | show | backup | restore | rotate
 aegis card export | import
 aegis contact list | verify <name> | remove <name>
 aegis send <file> [--to <contact>] [--no-split] [--passphrase] [--sign]
-                  [--ttl <duration>] [--burn] [--live] [--note <text>]
-aegis receive <link> [--key <key>] [--out <dir>]
+                  [--ttl <duration>] [--burn] [--live] [--note-file <path>]
+aegis receive [--out <dir>]
 aegis revoke <share>
 aegis shares
 ```
+
+No command takes an artifact, a passphrase or a recovery phrase as an argument or from the environment: both are visible in the process list and saved in shell history. `receive` prompts for the link and then the key, or reads them from standard input.
 
 **Interface obligations** (spec App. C.4). Each is a test.
 
@@ -660,8 +666,12 @@ Every pull request must pass all of these. GitHub Actions are pinned by commit h
 | Miri | Tier 1 unit tests |
 | Fuzz smoke | Each target for five minutes on the committed corpus |
 | Compile-fail | `trybuild` suite |
+| Tier graph | Test over `cargo metadata`: no dependency edge the standard forbids (A-1) |
+| Routes | Every route in `docs/surface/routes.toml` has a tagged adversarial test (M-2) |
+| Sabotage | Each patch in `sabotage/` applied to a scratch tree must turn the suite red (T-10) |
+| Mutation | No untriaged surviving mutant in Tier 1 (T-9); run on changed crates per pull request, in full nightly |
 
-Long fuzzing runs and the 100,000-case differential run are scheduled nightly, not per pull request.
+Long fuzzing runs, the 100,000-case differential run, and the one-million-seed deterministic simulation (T-17) are scheduled nightly, not per pull request.
 
 ---
 

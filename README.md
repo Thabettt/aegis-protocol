@@ -16,6 +16,7 @@ Read in this order.
 | 2 | [Aegis_project_specification.md](Aegis_project_specification.md) | The v3.0 protocol. Normative. |
 | 3 | [Aegis_research.md](Aegis_research.md) | Design rationale, security analysis, prior art |
 | 4 | [Aegis_implementation_plan.md](Aegis_implementation_plan.md) | Milestones M0–M11, from executable model to audited release |
+| 5 | [Aegis_engineering_standard.md](Aegis_engineering_standard.md) | Binding rules for implementers: architecture, gates, test rings, attack catalogue |
 
 ## Executable model
 
