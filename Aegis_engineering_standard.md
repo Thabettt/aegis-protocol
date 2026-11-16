@@ -158,6 +158,10 @@ A **piece** is the smallest unit that has its own inputs and outputs: a parser, 
 
 **M-1.** Name the specification sections the piece implements. If a behaviour is needed that the specification does not define, the work stops and the specification is changed first, by a decision record. The model is updated in the same change.
 
+**M-1a. The model is an oracle for bytes, never a design reference.** `model/aegis_v3_model.py` exists to say which bytes are correct and which inputs are rejected. Implementers compare outputs with it. They do not port it, and they do not copy its structure: it takes secrets as parameters, holds whole files in memory, is not constant-time, erases nothing, and has no state machine — each of which this standard forbids in real code. Code that passes every vector and has the model's shape fails review.
+
+**M-1b. The independent implementer never reads the model.** Whoever writes the independent implementation (plan M4) works from the specification alone, and has not read the model or the reference implementation. An implementer who has seen either can inherit its misreadings, and the result is no longer independent. The model was written from one person's reading of the specification; only someone working from the text alone can find the places where that reading filled a gap.
+
 ### G1 — Surface statement
 
 **M-2.** Before any code, write the piece's surface statement into `docs/surface/<piece>.md`:
